@@ -17,13 +17,13 @@ const api = axios.create({
 export const uploadFile = (file) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post('/upload/file', formData, {
+    return api.post('/api/upload/file', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
     });
 };
 
 export const uploadGoogleSheet = async (sheetUrl) => {
-    const response = await api.post('/upload/google-sheet', { url: sheetUrl });
+    const response = await api.post('/api/upload/google-sheet', { url: sheetUrl });
     return response.data;
 };
 
