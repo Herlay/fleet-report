@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { generateDeepDiveReport } from '../services/ai.service.js';
 
 /*
 - Fleet Size
@@ -347,9 +348,7 @@ export const getWeeklyReportMetrics = async (startDate, endDate, absoluteWeek = 
                             MAX(CASE WHEN trip_category = 'IT' THEN 1 ELSE 0 END) as did_it 
                             FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number
                         ) as deployment_stats`, [s, e]),
-            
-            // Fleet Manager Logic
-           // Fleet Manager Logic
+               // Fleet Manager Logic
 pool.query(`
     SELECT 
         UPPER(TRIM(main.fleet_manager)) as name,
