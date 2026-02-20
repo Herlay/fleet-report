@@ -349,30 +349,32 @@ export const getWeeklyReportMetrics = async (startDate, endDate, absoluteWeek = 
                         ) as deployment_stats`, [s, e]),
             
             // Fleet Manager Logic
-            pool.query(`
-                SELECT 
-                    UPPER(TRIM(main.fleet_manager)) as name,
-                    SUM(CASE WHEN main.trip_category != 'IT' OR main.trip_category IS NULL THEN 1 ELSE 0 END) as trips,
-                    COUNT(DISTINCT main.truck_number) as active_trucks,
-                    SUM(main.profit - main.maintenance) as profit,
-                    GROUP_CONCAT(DISTINCT main.brand SEPARATOR ' AND ') as manager_brands,
-                    COALESCE(target.met_count, 0) as trucks_met_target
-                FROM trips main
-                LEFT JOIN (
-                    SELECT UPPER(TRIM(fleet_manager)) as fm_key, COUNT(DISTINCT truck_number) as met_count
-                    FROM (
-                        SELECT fleet_manager, truck_number, COUNT(*) as trip_count
-                        FROM trips
-                        WHERE (trip_category != 'IT' OR trip_category IS NULL)
-                        AND trip_date BETWEEN ? AND ?
-                        GROUP BY fleet_manager, truck_number
-                        HAVING trip_count >= 3
-                    ) AS inner_count
-                    GROUP BY fm_key
-                ) AS target ON UPPER(TRIM(main.fleet_manager)) = target.fm_key
-                WHERE main.trip_date BETWEEN ? AND ?
-                GROUP BY UPPER(TRIM(main.fleet_manager))
-                ORDER BY profit DESC`, [s, e, s, e]),
+           // Fleet Manager Logic
+pool.query(`
+    SELECT 
+        UPPER(TRIM(main.fleet_manager)) as name,
+        SUM(CASE WHEN main.trip_category != 'IT' OR main.trip_category IS NULL THEN 1 ELSE 0 END) as trips,
+        COUNT(DISTINCT main.truck_number) as active_trucks,
+        SUM(main.profit - main.maintenance) as profit,
+        GROUP_CONCAT(DISTINCT main.brand SEPARATOR ' AND ') as manager_brands,
+        MAX(COALESCE(target.met_count, 0)) as trucks_met_target
+    FROM trips main
+    LEFT JOIN (
+        SELECT UPPER(TRIM(fleet_manager)) as fm_key, COUNT(DISTINCT truck_number) as met_count
+        FROM (
+            SELECT fleet_manager, truck_number, COUNT(*) as trip_count
+            FROM trips
+            WHERE (trip_category != 'IT' OR trip_category IS NULL)
+            AND trip_date BETWEEN ? AND ?
+            GROUP BY fleet_manager, truck_number
+            HAVING trip_count >= 3
+        ) AS inner_count
+        GROUP BY fm_key
+    ) AS target ON UPPER(TRIM(main.fleet_manager)) = target.fm_key
+    WHERE main.trip_date BETWEEN ? AND ?
+    GROUP BY UPPER(TRIM(main.fleet_manager))
+    ORDER BY profit DESC
+`, [s, e, s, e]),
 
             //  Supporting Data Queries
             pool.query(`SELECT truck_number as id, MAX(driver_name) as driver, MAX(brand) as brand, MAX(fleet_manager) as fm, COUNT(*) as trips, SUM(CASE WHEN trip_category = 'IT' THEN 1 ELSE 0 END) as it_trips, SUM(profit) as profit FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number ORDER BY trips DESC LIMIT 10`, [s, e]),

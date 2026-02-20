@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const PORT = process.env.PORT || 5000;
-const HOST = '0.0.0.0'; // Allows Render to bind to all network interfaces
+const HOST = '0.0.0.0'; 
 
 app.listen(PORT, HOST, () => {
   console.log(`
