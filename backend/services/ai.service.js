@@ -6,16 +6,18 @@ dotenv.config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export const generateDeepDiveReport = async (data) => {
-   
+    // Unique ID for caching so we don't call AI twice for the same data
     const weekId = `deep_dive_wk${data.absoluteWeek}_${data.weekLabel.replace(/\s+/g, '_')}`;
 
     try {
-       
+        // 1. Check Cache First
         const [cached] = await pool.query("SELECT ai_content FROM report_cache WHERE week_identifier = ?", [weekId]);
-        if (cached.length > 0) return JSON.parse(cached[0].ai_content);
+        if (cached && cached.length > 0) {
+            return JSON.parse(cached[0].ai_content);
+        }
 
-      
-        const modelName = "gemini-2.5-flash"; 
+        // 2. AI Configuration (FIXED MODEL NAME)
+        const modelName = "gemini-1.5-flash"; 
         const fmt = (val) => new Intl.NumberFormat('en-NG', { 
             style: 'currency', currency: 'NGN', maximumFractionDigits: 0 
         }).format(val || 0);
@@ -25,7 +27,7 @@ export const generateDeepDiveReport = async (data) => {
             generationConfig: { responseMimeType: "application/json" }
         });
 
-    
+        // 3. Construct Prompt
         const prompt = `
             You are a Senior Fleet Intelligence Analyst. Write a data-driven professional performance report for Week ${data.absoluteWeek}.
             
@@ -69,10 +71,12 @@ export const generateDeepDiveReport = async (data) => {
             }
         `;
 
+        // 4. Call Gemini
         const result = await model.generateContent(prompt);
-        const aiResponse = JSON.parse(result.response.text());
+        const textResponse = result.response.text();
+        const aiResponse = JSON.parse(textResponse);
 
-    
+        // 5. Save to Cache
         await pool.query("INSERT INTO report_cache (week_identifier, ai_content) VALUES (?, ?)", 
             [weekId, JSON.stringify(aiResponse)]
         );
@@ -82,6 +86,7 @@ export const generateDeepDiveReport = async (data) => {
     } catch (error) {
         console.error("AI Service Error:", error.message);
     
+        // 6. Fallback Response (Crucial so the Frontend doesn't break)
         return { 
             executive_summary: `Operational overview for Week ${data.absoluteWeek} showing ${data.trips_breakdown?.total || 0} total movements.`,
             brand_insights: "Brand performance is tracking within expected utilization parameters across the 90-unit fleet.",
