@@ -17,7 +17,7 @@ export const generateDeepDiveReport = async (data) => {
         }
 
         // 2. AI Configuration (FIXED MODEL NAME)
-        const modelName = "gemini-1.5-flash"; 
+           const modelName = "gemini-2.5-flash"; 
         const fmt = (val) => new Intl.NumberFormat('en-NG', { 
             style: 'currency', currency: 'NGN', maximumFractionDigits: 0 
         }).format(val || 0);
