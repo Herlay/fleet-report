@@ -11,7 +11,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { Bar, LineElement, Doughnut } from 'react-chartjs-2';
+import { Bar, Doughnut } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement, LineElement, 
