@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { 
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, 
-  Title, Tooltip, Legend, PointElement, LineElement, ArcElement,  
+  Title, Tooltip, Legend, PointElement, LineElement, ArcElement,  LineController
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import html2pdf from 'html2pdf.js';
@@ -17,7 +17,7 @@ import { getWeeklyReportAI } from '../services/api';
 
 ChartJS.register(
   CategoryScale, LinearScale, BarElement, Title, Tooltip, 
-  Legend, PointElement, LineElement, ArcElement
+  Legend, PointElement, LineElement, ArcElement, LineController
 );
 
 const ReportPage = () => {
