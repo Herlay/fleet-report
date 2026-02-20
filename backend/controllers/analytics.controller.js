@@ -1,5 +1,7 @@
 import * as AnalyticsService from '../services/analytics.service.js';
 import { generateRangeInsights } from '../services/insights.service.js';
+import { generateDeepDiveReport } from '../services/ai.service.js'; // <--- THIS LINE IS THE FIX
+
 
 const getWeekRange = (week) => {
     const start = week;
