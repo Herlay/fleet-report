@@ -348,7 +348,7 @@ export const getWeeklyReportMetrics = async (startDate, endDate, absoluteWeek = 
                             MAX(CASE WHEN trip_category = 'IT' THEN 1 ELSE 0 END) as did_it 
                             FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number
                         ) as deployment_stats`, [s, e]),
-               // Fleet Manager Logic
+             // Fleet Manager Logic 
 pool.query(`
     SELECT 
         UPPER(TRIM(main.fleet_manager)) as name,
@@ -356,20 +356,19 @@ pool.query(`
         COUNT(DISTINCT main.truck_number) as active_trucks,
         SUM(main.profit - main.maintenance) as profit,
         GROUP_CONCAT(DISTINCT main.brand SEPARATOR ' AND ') as manager_brands,
-        MAX(COALESCE(target.met_count, 0)) as trucks_met_target
+        COALESCE(SUM(target.is_met), 0) as trucks_met_target
     FROM trips main
     LEFT JOIN (
-        SELECT UPPER(TRIM(fleet_manager)) as fm_key, COUNT(DISTINCT truck_number) as met_count
-        FROM (
-            SELECT fleet_manager, truck_number, COUNT(*) as trip_count
-            FROM trips
-            WHERE (trip_category != 'IT' OR trip_category IS NULL)
-            AND trip_date BETWEEN ? AND ?
-            GROUP BY fleet_manager, truck_number
-            HAVING trip_count >= 3
-        ) AS inner_count
-        GROUP BY fm_key
-    ) AS target ON UPPER(TRIM(main.fleet_manager)) = target.fm_key
+        SELECT 
+            UPPER(TRIM(fleet_manager)) as fm_key, 
+            truck_number, 
+            IF(COUNT(*) >= 3, 1, 0) as is_met
+        FROM trips
+        WHERE (trip_category != 'IT' OR trip_category IS NULL)
+        AND trip_date BETWEEN ? AND ?
+        GROUP BY UPPER(TRIM(fleet_manager)), truck_number
+    ) AS target ON UPPER(TRIM(main.fleet_manager)) = target.fm_key 
+               AND main.truck_number = target.truck_number
     WHERE main.trip_date BETWEEN ? AND ?
     GROUP BY UPPER(TRIM(main.fleet_manager))
     ORDER BY profit DESC
