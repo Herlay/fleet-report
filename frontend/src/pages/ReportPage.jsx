@@ -50,7 +50,7 @@ const ReportPage = () => {
   const downloadPDF = () => {
     const element = reportRef.current;
     const opt = {
-      margin: [10, 10],
+      margin: [5, 10],
       filename: `Fleet_Intelligence_Wk${meta.absoluteWeek}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true },
@@ -59,13 +59,61 @@ const ReportPage = () => {
     html2pdf().set(opt).from(element).save();
   };
 
-  const downloadWord = () => {
-    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'></head><body>";
-    const footer = "</body></html>";
-    const sourceHTML = header + reportRef.current.innerHTML + footer;
-    const blob = new Blob(['\ufeff', sourceHTML], { type: 'application/msword' });
-    saveAs(blob, `Fleet_Report_Wk${meta.absoluteWeek}.doc`);
-  };
+const downloadWord = () => {
+  if (!reportRef.current) return;
+
+  const fileName = `Fleet_Intelligence_Report_Wk${meta.absoluteWeek}.doc`;
+
+  // 1. Microsoft Word Specific XML and Styles
+  const fileHeader = `
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' 
+          xmlns:w='urn:schemas-microsoft-com:office:word' 
+          xmlns='http://www.w3.org/TR/REC-html40'>
+    <head>
+      <meta charset='utf-8'>
+      <style>
+        @page Section1 {
+          size: 595.3pt 841.9pt; /* A4 */
+          margin: 1.0in 0.75in 1.0in 0.75in;
+          mso-header-margin: 35.4pt;
+          mso-footer-margin: 35.4pt;
+        }
+        div.Section1 { page: Section1; }
+        body { font-family: "Calibri", "Segoe UI", sans-serif; font-size: 11pt; }
+        table { border-collapse: collapse; width: 100%; border: 1pt solid #e2e8f0; margin-bottom: 15pt; }
+        th { background-color: #1e3a8a; color: white; padding: 8pt; border: 1pt solid #ffffff; text-align: left; font-size: 10pt; }
+        td { padding: 8pt; border: 1pt solid #e2e8f0; vertical-align: top; font-size: 10pt; }
+        h1 { color: #1e3a8a; font-size: 22pt; margin-bottom: 5pt; }
+        h3 { color: #1e3a8a; font-size: 14pt; border-bottom: 1.5pt solid #1e3a8a; padding-bottom: 3pt; margin-top: 20pt; text-transform: uppercase; }
+        .stat-box { border: 1pt solid #e2e8f0; background-color: #f8fafc; padding: 10pt; }
+        .text-green { color: #16a34a; font-weight: bold; }
+        .text-red { color: #dc2626; font-weight: bold; }
+        .page-break { page-break-before: always; }
+      </style>
+    </head>
+    <body><div class="Section1">`;
+
+  const fileFooter = "</div></body></html>";
+
+  // 2. Clone the report and clean it
+  const clone = reportRef.current.cloneNode(true);
+  
+  // Remove things Word hates (Charts, SVGs, Buttons)
+  const elementsToRemove = clone.querySelectorAll('.no-print, canvas, svg, button');
+  elementsToRemove.forEach(el => el.remove());
+
+  // 3. Fix Layout: Convert Grid/Flex to Tables
+  // Word ignores "display: grid". We must wrap side-by-side elements in a <table>
+  const gridSections = clone.querySelectorAll('[style*="display: grid"], [style*="display: flex"]');
+  gridSections.forEach(section => {
+    section.style.display = 'block'; // Fallback for Word
+  });
+
+  const sourceHTML = fileHeader + clone.innerHTML + fileFooter;
+  const blob = new Blob(['\ufeff', sourceHTML], { type: 'application/msword' });
+  
+  saveAs(blob, fileName);
+};
 
   
   const renderContent = () => {
@@ -412,7 +460,7 @@ const ReportPage = () => {
   </h3>
 
   <p style={{ fontSize: '12px', color: '#475569', marginBottom: '15px', lineHeight: '1.6' }}>
-    The <strong>{metrics?.trips_breakdown?.non_it} revenue trips</strong> this week were covered by the active fleet, 
+    The <strong>{metrics?.trips_breakdown?.non_it || 0} revenue trips</strong> this week were covered by the active fleet, 
     with performance metrics detailed below based on brand utilization.
   </p>
 
@@ -432,7 +480,7 @@ const ReportPage = () => {
         <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
           <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontWeight: 'bold' }}>
             {b.name} ({b.capacity})
-            {b.utilization_pct >= 80 && <BarChartBig size={14} style={{ marginLeft: '8px', color: '#16a34a', verticalAlign: 'middle' }} />}
+            {Number(b.utilization_pct) >= 80 && <BarChartBig size={14} style={{ marginLeft: '8px', color: '#16a34a', verticalAlign: 'middle' }} />}
           </td>
           <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>{b.active_trucks}</td>
           <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>{b.utilization_pct}%</td>
@@ -442,10 +490,10 @@ const ReportPage = () => {
         </tr>
       ))}
       
-    
       {(() => {
-        const tableActiveTotal = metrics?.brandPerformance?.reduce((sum, b) => sum + b.active_trucks, 0) || 0;
-        const tableTripsTotal = metrics?.brandPerformance?.reduce((sum, b) => sum + b.trips, 0) || 0;
+        // FIX: Wrap values in Number() to prevent string concatenation
+        const tableActiveTotal = metrics?.brandPerformance?.reduce((sum, b) => sum + Number(b.active_trucks || 0), 0) || 0;
+        const tableTripsTotal = metrics?.brandPerformance?.reduce((sum, b) => sum + Number(b.trips || 0), 0) || 0;
         
         return (
           <tr style={{ backgroundColor: '#f1f5f9', fontWeight: 'bold', borderTop: '2px solid #1e3a8a' }}>
@@ -465,54 +513,48 @@ const ReportPage = () => {
     </tbody>
   </table>
 
- {/* AI-DRIVEN INSIGHTS */}
-<div style={{ padding: '20px', backgroundColor: '#eff6ff', borderLeft: '5px solid #1e3a8a', borderRadius: '4px' }}>
-  <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '15px', textTransform: 'uppercase' }}>
-    AI Operational Analysis
-  </h4>
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-    {metrics?.brandPerformance?.map((b, i) => {
-      const name = b.name.toUpperCase();
-      const efficiency = parseFloat(b.efficiency);
-      const utilization = b.utilization_pct;
-      
-      let insight = "";
+  {/* AI-DRIVEN INSIGHTS */}
+  <div style={{ padding: '20px', backgroundColor: '#eff6ff', borderLeft: '5px solid #1e3a8a', borderRadius: '4px' }}>
+    <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '15px', textTransform: 'uppercase' }}>
+      AI Operational Analysis
+    </h4>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {metrics?.brandPerformance?.map((b, i) => {
+        const name = b.name.toUpperCase();
+        const efficiency = parseFloat(b.efficiency || 0);
+        const utilization = Number(b.utilization_pct || 0);
+        
+        let insight = "";
 
-      //  TOP PERFORMER LOGIC (Highest Efficiency)
-      const isTopEfficiency = b.efficiency === Math.max(...metrics.brandPerformance.map(bp => bp.efficiency)).toFixed(1);
-      
-      if (name.includes('HOWO')) {
-        insight = `remains the strategic backbone of the fleet. With ${utilization}% utilization and a T/T efficiency of ${efficiency}, it is currently driving ${b.trip_share}% of total commercial volume. Stability in this segment is critical for overall targets.`;
-      } 
-      
-      //  LOW ACTIVATION BUT GOOD EFFICIENCY (Growth Opportunity)
-      else if (utilization < 60 && efficiency >= 4.0) {
-        insight = `is showing strong per-unit productivity (${efficiency} trips/truck), but overall impact is throttled by low activation (${utilization}%). Bringing more units online in this category could significantly boost weekly revenue.`;
-      }
+        // Determine if this brand is the highest efficiency performer
+        const maxEfficiency = Math.max(...metrics.brandPerformance.map(bp => parseFloat(bp.efficiency || 0)));
+        const isTopEfficiency = efficiency === maxEfficiency && efficiency > 0;
+        
+        if (name.includes('HOWO')) {
+          insight = `remains the strategic backbone of the fleet. With ${utilization}% utilization and a T/T efficiency of ${efficiency}, it is currently driving ${b.trip_share}% of total commercial volume. Stability in this segment is critical for overall targets.`;
+        } 
+        else if (utilization < 60 && efficiency >= 4.0) {
+          insight = `is showing strong per-unit productivity (${efficiency} trips/truck), but overall impact is throttled by low activation (${utilization}%). Bringing more units online in this category could significantly boost weekly revenue.`;
+        }
+        else if (utilization > 60 && efficiency < 3.8) {
+          insight = `is currently exhibiting operational friction. Despite ${utilization}% activation, efficiency is lagging at ${efficiency}. This suggests potential issues with dispatch turnaround times or maintenance delays for this brand.`;
+        }
+        else if (Number(b.capacity) <= 15) {
+          insight = `delivered ${b.trips} trips with an efficiency of ${efficiency}. While performing steadily, its scale impact remains limited by fleet size. It serves as an effective secondary support brand.`;
+        }
+        else {
+          insight = `contributed ${b.trips} trips (${b.trip_share}% share). With a T/T efficiency of ${efficiency}, it maintains a balanced role within the operational workflow.`;
+        }
 
-      // UNDERPERFORMANCE LOGIC (High Activation, Low Efficiency)
-      else if (utilization > 60 && efficiency < 3.8) {
-        insight = `is currently exhibiting operational friction. Despite ${utilization}% activation, efficiency is lagging at ${efficiency}. This suggests potential issues with dispatch turnaround times or maintenance-related delays for this brand.`;
-      }
-
-      // SCALE IMPACT LOGIC (Small Brands)
-      else if (b.capacity <= 15) {
-        insight = `delivered ${b.trips} trips with an efficiency of ${efficiency}. While performing steadily, its scale impact remains limited by the small fleet size. It is serving as an effective secondary support brand.`;
-      }
-
-      // DEFAULT FALLBACK
-      else {
-        insight = `contributed ${b.trips} trips (${b.trip_share}% share). With a T/T efficiency of ${efficiency}, it maintains a balanced role within the operational workflow.`;
-      }
-
-      return (
-        <div key={i} style={{ fontSize: '11.5px', color: '#1e293b', lineHeight: '1.6' }}>
-          <span style={{ color: '#1e3a8a', fontWeight: 'bold' }}>{b.name}:</span> {insight}
-        </div>
-      );
-    })}
+        return (
+          <div key={i} style={{ fontSize: '11.5px', color: '#1e293b', lineHeight: '1.6' }}>
+            <span style={{ color: '#1e3a8a', fontWeight: 'bold' }}>{b.name}:</span> {insight}
+            {isTopEfficiency && <Sparkles size={12} style={{ marginLeft: '6px', color: '#eab308', display: 'inline' }} />}
+          </div>
+        );
+      })}
+    </div>
   </div>
-</div>
 </section>
 
 {/* TRIPS WoW CHANGE BY BRAND */}
@@ -718,110 +760,154 @@ const ReportPage = () => {
           </div>
         </section>
 
-{/*  FLEET MANAGER INSIGHT (REVENUE AUDIT) */}
-<section style={{ marginBottom: '40px' }}>
-  <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '5px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
-    <Users size={18} /> 👥 Fleet Manager Insight – Week {meta?.absoluteWeek || metrics?.absoluteWeek} (Revenue Trips Only)
+{/* FLEET MANAGER INSIGHT (REVENUE AUDIT) */}
+<section style={{ marginBottom: '40px', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '20px' }}>
+  <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '8px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
+    <Users size={18} /> Fleet Manager Performance – Week {meta?.absoluteWeek || metrics?.absoluteWeek}
   </h3>
   
-
-  <p style={{ fontSize: '11px', color: '#475569', marginBottom: '15px', fontWeight: '500' }}>
-    Compared to previous, the trucks used by the fleet managers for commercial operations 
-    <span style={{ color: (metrics?.truckChange || 0) < 0 ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>
-      {(metrics?.truckChange || 0) < 0 ? ` decreased by ${Math.abs(metrics?.truckChange)}` : ` increased by ${metrics?.truckChange || 0}`}
-    </span>
+  <p style={{ fontSize: '12px', color: '#475569', marginBottom: '16px', fontWeight: '500' }}>
+    Operational Shift: Active commercial fleet 
+    <span style={{ color: (Number(metrics?.truckChange) || 0) < 0 ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>
+      {(Number(metrics?.truckChange) || 0) < 0 ? ` decreased by ${Math.abs(metrics?.truckChange)}` : ` increased by ${metrics?.truckChange || 0} units`}
+    </span> compared to previous period.
   </p>
 
-  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', marginBottom: '20px' }}>
-    <thead>
-      <tr style={{ backgroundColor: '#1e3a8a', color: '#fff' }}>
-        <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'left' }}>Fleet Managers (Trucks)</th>
-        <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>Active Trucks</th>
-        <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>% of Util. Rate</th>
-        <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>Revenue Trips</th>
-        <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>% of Commercial Volume</th>
-        <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>T/T Efficiency</th>
-        <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>% Met Target (3+)</th>
-        <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>Net Profit</th>
-        <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>Avg. Profit/Truck</th>
-      </tr>
-    </thead>
-    <tbody>
-      {metrics?.managers?.map((m, i) => {
-      
-        const revTrips = m?.trips || 0; 
-        const active = m?.active_trucks || 0;
-        const capacity = m?.total_capacity || 1;
-        const totalCommercialVolume = metrics?.trips_breakdown?.non_it || 1;
-        const avgProfit = active > 0 ? (m?.profit || 0) / active : 0;
+  <div style={{ overflowX: 'auto' }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px', marginBottom: '24px' }}>
+      <thead>
+        <tr style={{ backgroundColor: '#1e3a8a', color: '#fff' }}>
+          <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'left' }}>Fleet Managers (Trucks)</th>
+          <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Active Trucks </th>
+          <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>% of Utilization Rate</th>
+          <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Total Trips</th>
+          <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>% of Total Trips</th>
+          <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>T/T Efficiency</th>
+          {/* <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Target Met (3+)</th> */}
+          <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Net Profit</th>
+          <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Avg. Profit/Unit</th>
+        </tr>
+      </thead>
+      <tbody>
+        {metrics?.managers?.map((m, i) => {
+          // --- INTERNAL VARIABLE DEFINITIONS ---
+          const active = Number(m?.active_trucks || 0);
+          const capacity = Number(m?.total_capacity || 1);
+          const revenueTrips = Number(m?.trips || 0);
+          const profit = Number(m?.profit || 0);
+          
+          // Fix for ReferenceError: Defining totalCommVol locally
+          const totalCommVol = Number(metrics?.trips_breakdown?.non_it || 1);
+          
+          const truckDiff = Number(m.truck_diff || 0);
+          const metPct = m.met_target_pct !== undefined ? m.met_target_pct : 0;
 
-        return (
-          <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-            <td style={{ padding: '8px', border: '1px solid #ddd', fontWeight: 'bold', color: '#1e293b' }}>
-              {m.name} ({capacity})
-            </td>
-            <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>
-              {active} 
-              <span style={{ fontSize: '8px', color: (m.truck_diff || 0) < 0 ? '#dc2626' : '#16a34a', marginLeft: '4px' }}>
-                ({(m.truck_diff || 0) < 0 ? '↓' : '↑'}{Math.abs(m.truck_diff || 0)})
-              </span>
-            </td>
-            <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center', fontWeight: '600' }}>
-              {Math.round((active / capacity) * 100)}%
-            </td>
-            <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 'bold' }}>
-              {revTrips}
-            </td>
-            <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center', color: '#64748b' }}>
-              {Math.round((revTrips / totalCommercialVolume) * 100)}%
-            </td>
-            <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 'bold' }}>
-              {m.efficiency || '0.0'}
-            </td>
-            <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>
-              <div style={{ 
-                padding: '2px 6px', 
-                borderRadius: '4px', 
-                backgroundColor: (m.met_target_pct || 0) >= 80 ? '#f0fdf4' : '#fff7ed', 
-                color: (m.met_target_pct || 0) >= 80 ? '#16a34a' : '#c2410c', 
-                display: 'inline-block', 
-                fontWeight: 'bold',
-                border: `1px solid ${(m.met_target_pct || 0) >= 80 ? '#bbf7d0' : '#fed7aa'}`
+          return (
+            <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+              {/* 1. Manager Name */}
+              <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', fontWeight: 'bold', color: '#1e293b' }}>
+                {m.name} ({capacity})
+              </td>
+
+              {/* 2. Active Units with Trend Indicator */}
+              <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 'bold' }}>{active}</span>
+                  {truckDiff !== 0 && (
+                    <span style={{ 
+                      fontSize: '8px', 
+                      color: truckDiff > 0 ? '#16a34a' : '#dc2626', 
+                      fontWeight: 'bold',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '1px'
+                    }}>
+                      {truckDiff > 0 ? '▲' : '▼'} {Math.abs(truckDiff)}
+                    </span>
+                  )}
+                </div>
+              </td>
+
+              {/* 3. Utilization Rate */}
+              <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                {Math.round((active / capacity) * 100)}%
+              </td>
+
+              {/* 4. Total Trips (Revenue) */}
+              <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold' }}>
+                {revenueTrips}
+              </td>
+
+              {/* 5. Volume Share */}
+              <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', color: '#64748b' }}>
+                {Math.round((revenueTrips / totalCommVol) * 100)}%
+              </td>
+
+              {/* 6. Efficiency (T/T) - Shaded for focus */}
+              <td style={{ 
+                padding: '10px 8px', 
+                border: '1px solid #e2e8f0', 
+                textAlign: 'center', 
+                fontWeight: 'bold', 
+                color: '#1e3a8a', 
+                backgroundColor: '#f1f5f9' 
               }}>
-                {m.met_target_pct || 0}%
-              </div>
-            </td>
-            <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right', fontWeight: 'bold' }}>
-              {fmt(m.profit || 0)}
-            </td>
-            <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right', fontWeight: '600', color: '#475569' }}>
-              {fmt(avgProfit)}
-            </td>
-          </tr>
-        );
-      })}
-    </tbody>
-  </table>
+                {m.efficiency || "0.0"}
+              </td>
 
+              {/* 7. Target Met (Pill Styling)
+              <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                <span style={{ 
+                  fontWeight: 'bold', 
+                  fontSize: '10px',
+                  color: metPct >= 80 ? '#16a34a' : '#c2410c',
+                  backgroundColor: metPct >= 80 ? '#f0fdf4' : '#fff7ed',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  border: `1px solid ${metPct >= 80 ? '#bbf7d0' : '#fed7aa'}`,
+                  display: 'inline-block'
+                }}>
+                  {metPct}%
+                </span>
+              </td> */}
 
+              {/* 8. Net Profit */}
+              <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'right', fontWeight: 'bold' }}>
+                {fmt(profit)}
+              </td>
+
+              {/* 9. Avg Profit/Truck */}
+              <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'right', fontWeight: '500' }}>
+                {fmt(active > 0 ? profit / active : 0)}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+
+{/* OBSERVATIONS PANEL */}
   <div style={{ padding: '20px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
     <h4 style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '12px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
       <Activity size={14} /> Fleet Manager Commercial Observations
     </h4>
     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
       {metrics?.managers?.map((m, i) => {
-          const util = Math.round(((m?.active_trucks || 0) / (m?.total_capacity || 1)) * 100);
-          const revTrips = m.trips || 0;
-          const commercialShare = Math.round((revTrips / (metrics?.trips_breakdown?.non_it || 1)) * 100);
-          const avgP = (m?.active_trucks || 0) > 0 ? (m?.profit || 0) / m.active_trucks : 0;
+          const active = Number(m?.active_trucks || 0);
+          const util = Math.round((active / (Number(m?.total_capacity) || 1)) * 100);
+          const revTrips = Number(m.trips || 0);
+          const commercialShare = Math.round((revTrips / Number(metrics?.trips_breakdown?.non_it || 1)) * 100);
+          const avgP = active > 0 ? Number(m?.profit || 0) / active : 0;
+          const metPct = active > 0 ? Math.round((Number(m.trucks_met_target || 0) / active) * 100) : 0;
           
           return (
             <div key={i} style={{ fontSize: '11px', color: '#334155', lineHeight: '1.6', paddingLeft: '10px', borderLeft: '3px solid #cbd5e1' }}>
-              <strong style={{ color: '#1e3a8a' }}>{m.name}:</strong> Managed {m.active_trucks} active trucks ({util}% utilization). 
-              Contributed <span style={{ fontWeight: 'bold' }}>{revTrips} trips</span> ({commercialShare}% of commercial volume) 
-              with a T/T efficiency of <span style={{ color: parseFloat(m.efficiency) >= 4.5 ? '#16a34a' : '#334155' }}>{m.efficiency}</span>. 
-              Notably, {m.met_target_pct}% of the assigned fleet achieved the 3+ commercial trips target. 
-              Financial yield resulted in {fmt(m.profit)} net profit, averaging {fmt(avgP)} per truck.
+              <strong style={{ color: '#1e3a8a' }}>{m.name}:</strong> Managed {active} active trucks ({util}% utilization). 
+              Contributed <span style={{ fontWeight: 'bold' }}>{revTrips} trips</span> ({commercialShare}% of total trips) 
+              with a T/T efficiency of <span style={{ color: parseFloat(m.efficiency) >= 4.0 ? '#16a34a' : '#c2410c' }}>{m.efficiency}</span>. 
+              {/* Notably, <span style={{ fontWeight: 'bold' }}>{metPct}%</span> of the active units achieved the 3+ commercial trips target.  */}
+               Financial yield resulted in {fmt(m.profit || 0)} net profit, averaging {fmt(avgP)} per truck.
             </div>
           );
       })}

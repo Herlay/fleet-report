@@ -6,7 +6,7 @@ const api = axios.create({
     // If production, use the live URL, otherwise use localhost
     baseURL: isProduction 
         ? import.meta.env.VITE_API_URL  
-        : 'http://localhost:5000/api', 
+        : 'http://localhost:5000', 
     headers: {
         'Content-Type': 'application/json',
     },
