@@ -144,7 +144,6 @@ const Trips = () => {
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', whiteSpace: 'nowrap' }}>
                         <thead>
                             <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #f1f5f9', textAlign: 'left', color: '#64748b' }}>
-                                <th style={{ padding: '15px 20px' }}>SN</th>
                                 <th style={{ padding: '15px' }}>TRIP DATE</th>
                                 <th style={{ padding: '15px' }}>TRIP ID</th>
                                 <th style={{ padding: '15px' }}>TRUCK & BRAND</th>
@@ -161,7 +160,6 @@ const Trips = () => {
                         <tbody>
                             {currentRows.length > 0 ? currentRows.map((t, i) => (
                                 <tr key={i} style={{ borderBottom: '1px solid #f8fafc', transition: '0.2s' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fbfcfd'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                                    <td style={{ padding: '15px 20px', color: '#94a3b8' }}>{t.sn || (indexOfFirstRow + i + 1)}</td>
                                     <td style={{ padding: '15px', fontWeight: '500', color: '#334155' }}>{new Date(t.trip_date).toLocaleDateString()}</td>
                                     <td style={{ padding: '15px', fontWeight: '700', color: '#1e3a8a' }}>{t.trip_id}</td>
                                     <td style={{ padding: '15px' }}>

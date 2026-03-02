@@ -90,7 +90,7 @@ const handleFilterChange = async ({ startDate, endDate, label }) => {
       <div className="p-20 text-center text-slate-500 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
         <div className="max-w-xs mx-auto space-y-3">
           <TrendingUp size={40} className="mx-auto text-slate-300" />
-          <p className="font-semibold text-slate-600">Command Center Offline</p>
+          <p className="font-semibold text-slate-600">System Offline, Check your connection!</p>
           <p className="text-sm">Select a date range to synchronize real-time fleet analytics.</p>
         </div>
       </div>
@@ -242,7 +242,7 @@ console.log("Brand Data Check:", topBrands);
         <ChartCard title={`NET PROFIT TREND`} type="bar" data={trendChartData} />
         
         {/* Brand Performance */}
-    <ChartCard 
+  <ChartCard 
   title="PROFIT SHARE BY BRAND" 
   type="doughnut" 
   data={brandDoughnutData} 
@@ -251,9 +251,17 @@ console.log("Brand Data Check:", topBrands);
       tooltip: {
         callbacks: {
           label: (context) => {
-            const value = context.raw || 0;
-            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-            const percentage = ((value / total) * 100).toFixed(1);
+            // Force value to be a number
+            const value = Number(context.raw) || 0;
+            
+            // Force every item in the array to be a number before summing
+            const total = (context.dataset.data || []).reduce((a, b) => Number(a) + Number(b), 0);
+            
+            // Calculate percentage
+            const percentage = total > 0 
+              ? ((value / total) * 100).toFixed(1) 
+              : "0.0";
+
             return ` Profit: ₦${value.toLocaleString()} (${percentage}%)`;
           }
         }
@@ -261,7 +269,6 @@ console.log("Brand Data Check:", topBrands);
     }
   }}
 />
-
         {/* Top Performers Table */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-[450px] overflow-hidden">
           <div className="flex justify-between items-center mb-6">
