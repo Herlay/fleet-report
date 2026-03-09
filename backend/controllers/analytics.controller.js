@@ -1,7 +1,6 @@
 import * as AnalyticsService from '../services/analytics.service.js';
 import { generateRangeInsights } from '../services/insights.service.js';
-import { generateDeepDiveReport } from '../services/ai.service.js'; // <--- THIS LINE IS THE FIX
-
+import { generateDeepDiveReport } from '../services/ai.service.js'; 
 
 const getWeekRange = (week) => {
     const start = week;
@@ -148,6 +147,20 @@ export const getWeeklyReportAI = async (req, res) => {
     }
 };
 
+export const getMonthlyReportController = async (req, res) => {
+    try {
+        const { month, year } = req.query; // These come from ?month=02&year=2026
+
+        // Call the service
+        const report = await AnalyticsService.getMonthlyExecutiveReport(month, year);
+        
+        res.json(report);
+    } catch (error) {
+        console.error("Controller Error:", error.message);
+        // This is what sends the 400 error to your console
+        res.status(400).json({ error: error.message });
+    }
+};
 export const getAllTrips = async (req, res) => {
     try {
         const rows = await AnalyticsService.fetchAllTrips(); 
@@ -157,3 +170,40 @@ export const getAllTrips = async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 };
+
+// export const getReportController = async (req,res)=>{
+
+//     try{
+
+//         const { startDate, endDate, absoluteWeek } = req.body;
+
+//         let result;
+
+//         if(absoluteWeek){
+//             result = await getWeeklyReportMetrics(
+//                 startDate,
+//                 endDate,
+//                 absoluteWeek
+//             );
+//         }
+//         else{
+//             result = await getRangeReportMetrics(
+//                 startDate,
+//                 endDate
+//             );
+//         }
+
+//         res.json({
+//             success:true,
+//             data:result
+//         });
+
+//     }catch(error){
+//         console.error(error);
+//         res.status(500).json({
+//             success:false,
+//             message:"Report generation failed"
+//         });
+//     }
+
+// };
