@@ -313,13 +313,15 @@ export const getWeeklyReportMetrics = async (startDate, endDate, absoluteWeek = 
             negativeProfitRes
         ] = await Promise.all([
             // Current Week General Summary
-            pool.query(`SELECT COUNT(*) as total_trips, 
-                        SUM(CASE WHEN trip_category = 'IT' THEN 1 ELSE 0 END) as it_trips, 
-                        SUM(CASE WHEN trip_category != 'IT' OR trip_category IS NULL THEN 1 ELSE 0 END) as non_it_trips, 
-                        COUNT(DISTINCT truck_number) as total_active_trucks, 
-                        SUM(profit) as gross_profit_val, 
-                        SUM(maintenance) as total_maint FROM trips WHERE trip_date BETWEEN ? AND ?`, [s, e]),
-            
+
+pool.query(`SELECT COUNT(*) as total_trips, 
+            SUM(CASE WHEN trip_category = 'IT' THEN 1 ELSE 0 END) as it_trips, 
+            SUM(CASE WHEN trip_category != 'IT' OR trip_category IS NULL THEN 1 ELSE 0 END) as non_it_trips, 
+            COUNT(DISTINCT truck_number) as total_active_trucks, 
+            -- ADD THIS LINE BELOW:
+            COUNT(DISTINCT CASE WHEN trip_category != 'IT' OR trip_category IS NULL THEN truck_number END) as active_trucks_non_it,
+            SUM(profit) as gross_profit_val, 
+            SUM(maintenance) as total_maint FROM trips WHERE trip_date BETWEEN ? AND ?`, [s, e]),
             // Previous Week Brand (Historical)
             pool.query(`SELECT brand, COUNT(*) as trips FROM trips WHERE trip_date BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND DATE_SUB(?, INTERVAL 7 DAY) GROUP BY brand`, [s, e]),
             
