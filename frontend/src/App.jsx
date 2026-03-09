@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import UploadPage from './pages/UploadPage'; 
 import ReportPage from './pages/ReportPage';
+import MonthlyReportPage from './pages/MonthlyReportPage';
 import Trips from './pages/Trips';
 
 function App() {
@@ -13,6 +14,7 @@ function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/upload" element={<UploadPage />} />
         <Route path="/reports" element={<ReportPage />} />
+        <Route path="/monthly_reports" element={<MonthlyReportPage />} />
         <Route path="/trips" element={<Trips />} />
       </Routes>
     </Layout>

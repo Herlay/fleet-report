@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback} from 'react';
 
 import { 
   Banknote, Truck, Activity, TrendingUp, Download,
@@ -9,7 +9,7 @@ import ChartCard from '../components/ChartCard';
 import FilterBar from '../components/FilterBar'; 
 import { getRangeData, getInsightsData } from '../services/api';
 
-const Dashboard = () => {
+const Dashboard = () => {   
   const [data, setData] = useState(null);
   const [insights, setInsights] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -55,34 +55,36 @@ const renderText = (text) => {
     );
   };
 
-const handleFilterChange = async ({ startDate, endDate, label }) => {
-    setLoading(true);
-    setCurrentRangeLabel(label);
-    try {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      const diffDays = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24));
-      const groupBy = diffDays > 60 ? 'month' : 'day';
 
-      const [rangeResult, insightsResult] = await Promise.all([
-        getRangeData(startDate, endDate, groupBy),
-        getInsightsData(startDate, endDate)
-      ]);
+const handleFilterChange = useCallback(async ({ startDate, endDate, label }) => {
+  setLoading(true);
+  setCurrentRangeLabel(label);
+  
+  try {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffDays = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24));
+    const groupBy = diffDays > 60 ? 'month' : 'day';
 
-      setData(rangeResult);
-      setInsights(insightsResult.data || []);
-    } catch (err) {
-      console.error("Dashboard Error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const [rangeResult, insightsResult] = await Promise.all([
+      getRangeData(startDate, endDate, groupBy),
+      getInsightsData(startDate, endDate)
+    ]);
+
+    setData(rangeResult);
+    setInsights(insightsResult.data || []);
+  } catch (err) {
+    console.error("Dashboard Error:", err);
+  } finally {
+    setLoading(false);
+  }
+}, []); 
 
    const formatCurrency = (val) => 
     new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(val || 0);
 
  
-  if (!data && loading) return <div className="p-10 text-center text-slate-500 font-medium italic animate-pulse">Analyzing Fleet Intelligence...</div>;
+  if (!data && loading) return <div className="p-10 text-center text-slate-500 font-medium italic animate-pulse">Analyzing Fleet Da...</div>;
 
   if (!data) return (
     <div className="space-y-6">
@@ -90,8 +92,8 @@ const handleFilterChange = async ({ startDate, endDate, label }) => {
       <div className="p-20 text-center text-slate-500 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
         <div className="max-w-xs mx-auto space-y-3">
           <TrendingUp size={40} className="mx-auto text-slate-300" />
-          <p className="font-semibold text-slate-600">System Offline, Check your connection!</p>
-          <p className="text-sm">Select a date range to synchronize real-time fleet analytics.</p>
+          <p className="font-semibold text-slate-600">Unable to generate data</p>
+          <p className="text-sm">Select a date range to synchronize the real-time fleet analytics.</p>
         </div>
       </div>
     </div>
@@ -208,7 +210,7 @@ console.log("Brand Data Check:", topBrands);
         <KpiCard title="Utilization" value={`${summary.utilization_rate}%`} icon={TrendingUp} color="purple" />
       </div>
 
-      {/* INSIGHTS */}
+      {/* INSIGHTS
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {insights.length > 0 ? (
           insights.map((insight, index) => (
@@ -233,7 +235,7 @@ console.log("Brand Data Check:", topBrands);
             <CheckCircle size={20} className="mr-3 text-slate-400" /> All operations are performing within optimized parameters.
           </div>
         )}
-      </div>
+      </div> */}
 
       {/* ANALYTICS GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -242,7 +244,7 @@ console.log("Brand Data Check:", topBrands);
         <ChartCard title={`NET PROFIT TREND`} type="bar" data={trendChartData} />
         
         {/* Brand Performance */}
-  <ChartCard 
+    <ChartCard 
   title="PROFIT SHARE BY BRAND" 
   type="doughnut" 
   data={brandDoughnutData} 
@@ -250,25 +252,27 @@ console.log("Brand Data Check:", topBrands);
     plugins: {
       tooltip: {
         callbacks: {
-          label: (context) => {
-            // Force value to be a number
+         label: (context) => {
             const value = Number(context.raw) || 0;
-            
-            // Force every item in the array to be a number before summing
-            const total = (context.dataset.data || []).reduce((a, b) => Number(a) + Number(b), 0);
-            
-            // Calculate percentage
+  const dataset = context.dataset.data || [];
+  const total = dataset.reduce((a, b) => a + (Number(b) || 0), 0);
             const percentage = total > 0 
-              ? ((value / total) * 100).toFixed(1) 
-              : "0.0";
+    ? ((value / total) * 100).toFixed(1) 
+    : "0.0";
 
-            return ` Profit: ₦${value.toLocaleString()} (${percentage}%)`;
+    const formattedValue = new Intl.NumberFormat('en-NG', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+
+          return ` Profit: ₦${formattedValue} (${percentage}%)`;
           }
         }
       }
     }
   }}
 />
+
         {/* Top Performers Table */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-[450px] overflow-hidden">
           <div className="flex justify-between items-center mb-6">

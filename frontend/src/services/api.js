@@ -96,6 +96,24 @@ export const getWeeklyReportAI = async (startDate, endDate, absoluteWeek = null)
     }
 };
 
+/**
+ * MONTHLY EXECUTIVE REPORTING SERVICE
+ */
+export const getMonthlyExecutiveReport = async (dateStr) => {
+    try {
+        // dateStr is "2026-02"
+        const [year, month] = dateStr.split('-'); 
+
+        const response = await api.get('/api/analytics/monthly-report', {
+            params: { month, year } 
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Monthly Report API Error:", error.response?.data?.error || error.message);
+        throw error;
+    }
+};
+
 //All Trips from the db
 export const getAllTrips = async () => {
     try {
@@ -106,5 +124,7 @@ export const getAllTrips = async () => {
         throw error;
     }
 };
+
+
 
 export default api;
