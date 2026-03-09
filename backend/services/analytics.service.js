@@ -505,7 +505,7 @@ pool.query(`
             netProfit: (curr.gross_profit_val || 0) - (curr.total_maint || 0),
             truckChange: curr.total_active_trucks - totalPrevActive,
             utilization: Math.round(((curr.total_active_trucks || 0) / 90) * 100),
-            avgTripPerTruck: (curr.non_it_trips / (curr.total_active_trucks || 1)).toFixed(1),
+            avgTripPerTruck: (curr.non_it_trips / (curr.active_trucks_non_it || 1)).toFixed(1),
             trends: (trendRes[0] || []).reverse().map((t, i) => ({ 
                 week: `Week ${currentWkNum - (trendRes[0].length - 1 - i)}`, 
                 trips: t.revenue_trips, 
