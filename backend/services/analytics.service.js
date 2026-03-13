@@ -475,7 +475,7 @@ pool.query(`
         }));
 
         //  Fleet Manager Mapping
-        const MANAGER_CAPS = { 'BENJAMIN': 35, 'MICHEAL': 30, 'FATAI': 25 };
+        const MANAGER_CAPS = { 'BENJAMIN': 35, 'MICHAEL': 30, 'FATAI': 25 };
         const managers = (managerRes[0] || []).map(cm => {
             const normalizedKey = cm.name.toUpperCase();
             const pmTrucks = (fmPrevTrucksRes[0] || []).find(p => p.name === normalizedKey);
@@ -552,13 +552,20 @@ export const getMonthlyExecutiveReport = async (month, year) => {
     }
 
     const FLEET_TOTAL_CAPACITY = 90;
-    const MANAGER_CAPS = { 'BENJAMIN': 35, 'MICHEAL': 30, 'FATAI': 25 };
+    const MANAGER_CAPS = { 'BENJAMIN': 35, 'MICHAEL': 30, 'FATAI': 25 };
     const BRAND_CAPS = { 'HOWO': 30, 'IVECO': 23, 'MACK': 25, 'MAN TGA': 12 };
 
     const startDate = `${y}-${String(m).padStart(2, '0')}-01`;
     const lastDay = new Date(y, m, 0).getDate();
     const endDate = `${y}-${String(m).padStart(2, '0')}-${lastDay} 23:59:59`;
     const lookbackDate = new Date(y, m - 4, 1).toISOString().split('T')[0];
+
+    // Previous Month Dates (For MoM Trends)
+    const prevM = m === 1 ? 12 : m - 1;
+    const prevY = m === 1 ? y - 1 : y;
+    const prevStartDate = `${prevY}-${String(prevM).padStart(2, '0')}-01`;
+    const prevLastDay = new Date(prevY, prevM, 0).getDate();
+    const prevEndDate = `${prevY}-${String(prevM).padStart(2, '0')}-${prevLastDay} 23:59:59`;
 
     const isNonIT = "(LOWER(trip_category) != 'it' OR trip_category IS NULL)";
     const isIT = "(LOWER(trip_category) = 'it')";
@@ -571,7 +578,7 @@ export const getMonthlyExecutiveReport = async (month, year) => {
             pool.query(`SELECT COUNT(*) as prev_trips FROM trips WHERE trip_date BETWEEN DATE_SUB(?, INTERVAL 1 MONTH) AND LAST_DAY(DATE_SUB(?, INTERVAL 1 MONTH)) AND ${isNonIT}`, [startDate, startDate]),
             // 2: Monthly Trends
             pool.query(`SELECT DATE_FORMAT(trip_date, '%b') as month_label, COUNT(DISTINCT CASE WHEN ${isNonIT} THEN truck_number END) as active_trucks, SUM(CASE WHEN ${isNonIT} THEN 1 ELSE 0 END) as trips, SUM(CASE WHEN ${isNonIT} THEN (COALESCE(profit,0) - COALESCE(maintenance,0)) ELSE 0 END) as net_profit FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY YEAR(trip_date), MONTH(trip_date), month_label ORDER BY YEAR(trip_date) ASC, MONTH(trip_date) ASC`, [lookbackDate, endDate]),
-            // 3: Managers
+            // 3: Managers (Current)
             pool.query(`SELECT UPPER(TRIM(main.fleet_manager)) as name, COUNT(DISTINCT main.truck_number) as active_trucks_total, COUNT(DISTINCT CASE WHEN ${isNonIT} THEN main.truck_number END) as active_trucks_non_it, SUM(CASE WHEN ${isNonIT} THEN 1 ELSE 0 END) as trips_non_it, SUM(COALESCE(main.profit, 0) - COALESCE(main.maintenance, 0)) as net_profit_total, COALESCE(target_data.met_target_count, 0) as trucks_met_target FROM trips main LEFT JOIN (SELECT manager_name, COUNT(*) as met_target_count FROM (SELECT UPPER(TRIM(fleet_manager)) as manager_name, truck_number FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(fleet_manager)), truck_number HAVING COUNT(*) >= 3) as inner_counts GROUP BY manager_name) as target_data ON UPPER(TRIM(main.fleet_manager)) = target_data.manager_name WHERE main.trip_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(main.fleet_manager))`, [startDate, endDate, startDate, endDate]),
             // 4: Brand Breakdown
             pool.query(`SELECT COALESCE(brand, 'Unknown') as name, COUNT(DISTINCT truck_number) as active_trucks_non_it, SUM(1) as trips_non_it FROM trips WHERE trip_date BETWEEN ? AND ? AND ${isNonIT} GROUP BY brand`, [startDate, endDate]),
@@ -580,7 +587,9 @@ export const getMonthlyExecutiveReport = async (month, year) => {
             // 6: Top Volume
             pool.query(`SELECT truck_number, MAX(brand) as brand, COUNT(*) as trips, MAX(driver_name) as driver, MAX(fleet_manager) as fm FROM trips WHERE trip_date BETWEEN ? AND ? AND ${isNonIT} GROUP BY truck_number ORDER BY trips DESC LIMIT 5`, [startDate, endDate]),
             // 7: Top Profit (Detailed)
-            pool.query(`SELECT truck_number, MAX(fleet_manager) as fm, SUM(CASE WHEN ${isIT} THEN COALESCE(profit, 0) ELSE 0 END) as it_profit, SUM(CASE WHEN ${isNonIT} THEN COALESCE(profit, 0) ELSE 0 END) as non_it_profit, SUM(COALESCE(profit, 0)) as grand_total, SUM(COALESCE(maintenance, 0)) as maintenance, COUNT(*) as trips, SUM(COALESCE(profit, 0) - COALESCE(maintenance, 0)) as net_profit FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number ORDER BY net_profit DESC LIMIT 10`, [startDate, endDate])
+            pool.query(`SELECT truck_number, MAX(fleet_manager) as fm, SUM(CASE WHEN ${isIT} THEN COALESCE(profit, 0) ELSE 0 END) as it_profit, SUM(CASE WHEN ${isNonIT} THEN COALESCE(profit, 0) ELSE 0 END) as non_it_profit, SUM(COALESCE(profit, 0)) as grand_total, SUM(COALESCE(maintenance, 0)) as maintenance, COUNT(*) as trips, SUM(COALESCE(profit, 0) - COALESCE(maintenance, 0)) as net_profit FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number ORDER BY net_profit DESC LIMIT 10`, [startDate, endDate]),
+            // 8: Managers (Previous) - For MoM comparisons
+            pool.query(`SELECT UPPER(TRIM(main.fleet_manager)) as name, COUNT(DISTINCT main.truck_number) as active_trucks_total, COUNT(DISTINCT CASE WHEN ${isNonIT} THEN main.truck_number END) as active_trucks_non_it, SUM(CASE WHEN ${isNonIT} THEN 1 ELSE 0 END) as trips_non_it, SUM(COALESCE(main.profit, 0) - COALESCE(main.maintenance, 0)) as net_profit_total FROM trips main WHERE main.trip_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(main.fleet_manager))`, [prevStartDate, prevEndDate])
         ]);
 
         const [currRows] = results[0]; const curr = currRows[0] || {};
@@ -591,6 +600,7 @@ export const getMonthlyExecutiveReport = async (month, year) => {
         const [brandTrendRaw] = results[5];
         const [topVolumeData] = results[6];
         const [topProfitData] = results[7];
+        const [prevManagerData] = results[8];
 
         const totalFleetTrips = managerData.reduce((sum, m) => sum + (Number(m.trips_non_it) || 0), 0);
 
@@ -615,8 +625,62 @@ export const getMonthlyExecutiveReport = async (month, year) => {
             };
         });
 
+        // --- Manager MoM Trend Logic (With Previous Data Added) ---
+        const allManagerNames = [...new Set([...managerData.map(m=>m.name), ...prevManagerData.map(m=>m.name)])].filter(Boolean);
+        
+        const processedManagerTrends = allManagerNames.map(mgrName => {
+            const currMgr = managerData.find(m => m.name === mgrName) || {};
+            const prevMgr = prevManagerData.find(m => m.name === mgrName) || {};
+            
+            const cap = MANAGER_CAPS[mgrName] || 30;
+            
+            const currTrips = Number(currMgr.trips_non_it || 0);
+            const prevTrips = Number(prevMgr.trips_non_it || 0);
+            
+            // Using total trucks for utilization/profit logic just like the standard manager table
+            const currTrucks = Number(currMgr.active_trucks_total || currMgr.active_trucks_non_it || 0);
+            const prevTrucks = Number(prevMgr.active_trucks_total || prevMgr.active_trucks_non_it || 0);
+            
+            const currProfit = Number(currMgr.net_profit_total || 0);
+            const prevProfit = Number(prevMgr.net_profit_total || 0);
+
+            // Calculate Trips MoM % Change
+            let diff = 0;
+            if (prevTrips > 0) diff = ((currTrips - prevTrips) / prevTrips) * 100;
+            else if (currTrips > 0) diff = 100;
+
+            // Derived Metrics
+            const currUtil = Math.round((currTrucks / cap) * 100);
+            const prevUtil = Math.round((prevTrucks / cap) * 100);
+
+           const currNonITTrucks = Number(currMgr.active_trucks_non_it || 0);
+const currTT = currNonITTrucks > 0 ? (currTrips / currNonITTrucks).toFixed(1) : "0.0";
+            const prevTT = prevTrucks > 0 ? (prevTrips / prevTrucks).toFixed(1) : "0.0";
+
+            const currAvgProfit = currTrucks > 0 ? Math.round(currProfit / currTrucks) : 0;
+            const prevAvgProfit = prevTrucks > 0 ? Math.round(prevProfit / prevTrucks) : 0;
+
+            return {
+                manager: mgrName,
+                capacity: cap,
+                currentMonthDisplay: `${currTrips} / (${currTrucks})`,
+                lastMonthDisplay: `${prevTrips} / (${prevTrucks})`,
+                change: diff === 0 ? "0%" : (diff > 0 ? "+" : "") + Math.round(diff) + "%",
+                utilization_pct: currUtil,
+                prev_utilization_pct: prevUtil,
+                t_t: currTT,
+                prev_t_t: prevTT,
+                profit: currProfit,
+                prev_profit: prevProfit,
+                avg_profit: currAvgProfit,
+                prev_avg_profit: prevAvgProfit
+            };
+        });
+
         return {
             reportMonth: new Date(y, m - 1).toLocaleString('en-US', { month: 'long', year: 'numeric' }).toUpperCase(),
+            prevMonthName: new Date(prevY, prevM - 1).toLocaleString('en-US', { month: 'short' }),
+            currMonthName: new Date(y, m - 1).toLocaleString('en-US', { month: 'short' }),
             summary: {
                 total_inhouse_trips: curr.non_it_trips || 0,
                 trips_growth_pct: prevVol > 0 ? Math.round(((curr.non_it_trips - prevVol) / prevVol) * 100) : 0,
@@ -644,6 +708,7 @@ export const getMonthlyExecutiveReport = async (month, year) => {
                     avg_profit: mgr.active_trucks_total > 0 ? Math.round(mgr.net_profit_total / mgr.active_trucks_total) : 0
                 };
             }),
+            managerTrends: processedManagerTrends,
             brands: brandData.map(b => {
                 const cap = BRAND_CAPS[b.name.toUpperCase()] || 25;
                 return {
@@ -662,6 +727,136 @@ export const getMonthlyExecutiveReport = async (month, year) => {
     } catch (error) {
         console.error("Critical Report Failure:", error);
         throw error;
+    }
+};
+
+export const getCustomRangeReport = async (startDate, endDate) => {
+    try {
+        const start = `${startDate} 00:00:00`;
+        const end = `${endDate} 23:59:59`;
+
+        // 1. OVERALL SUMMARY & FINANCIALS
+        const [summaryRaw] = await pool.query(`
+            SELECT 
+                COUNT(id) as total_trips,
+                COUNT(DISTINCT truck_number) as active_trucks, 
+                SUM(trip_rate) as total_gross,
+                SUM(maintenance) as total_maintenance,
+                SUM(profit) as total_net
+            FROM trips
+            WHERE trip_date BETWEEN ? AND ?
+        `, [start, end]);
+
+        const summaryData = summaryRaw[0];
+        const totalTrips = Number(summaryData.total_trips || 0);
+        const activeTrucks = Number(summaryData.active_trucks || 0);
+        const TOTAL_FLEET_SIZE = 90;
+
+        const summary = {
+            total_inhouse_trips: totalTrips,
+            active_trucks: activeTrucks,
+            total_fleet: TOTAL_FLEET_SIZE,
+            utilization_pct: Math.round((activeTrucks / TOTAL_FLEET_SIZE) * 100) || 0,
+            avg_tt: activeTrucks > 0 ? (totalTrips / activeTrucks).toFixed(1) : "0.0",
+            financials: {
+                gross: Number(summaryData.total_gross || 0),
+                maintenance: Number(summaryData.total_maintenance || 0),
+                net: Number(summaryData.total_net || 0)
+            }
+        };
+
+        // 2. FLEET MANAGER INSIGHTS
+        const MANAGER_CAPACITY = { 'MICHAEL': 30, 'BENJAMIN': 35, 'FATAI': 25 };
+        const [managersRaw] = await pool.query(`
+            SELECT 
+                fleet_manager as name,
+                COUNT(DISTINCT truck_number) as active_trucks,
+                COUNT(id) as total_trips,
+                SUM(profit) as profit
+            FROM trips
+            WHERE trip_date BETWEEN ? AND ?
+            GROUP BY fleet_manager
+            ORDER BY profit DESC
+        `, [start, end]);
+
+        const managers = managersRaw.map(m => {
+            const managerName = m.name ? m.name.toUpperCase() : 'UNASSIGNED';
+            const cap = MANAGER_CAPACITY[managerName] || 1;
+            const mTrips = Number(m.total_trips || 0);
+            const mActive = Number(m.active_trucks || 0);
+            return {
+                name: managerName,
+                capacity: cap,
+                active_trucks: mActive,
+                utilization_pct: Math.round((mActive / cap) * 100),
+                total_trips: mTrips,
+                trip_share: totalTrips > 0 ? Math.round((mTrips / totalTrips) * 100) : 0,
+                t_t: mActive > 0 ? (mTrips / mActive).toFixed(1) : "0.0",
+                profit: Number(m.profit || 0),
+                avg_profit: mActive > 0 ? (Number(m.profit || 0) / mActive) : 0
+            };
+        });
+
+        // 3. BRAND PERFORMANCE
+        const BRAND_CAPACITY = { 'HOWO': 30, 'IVECO': 23, 'MACK': 25, 'MAN TGA': 12 };
+        const [brandsRaw] = await pool.query(`
+            SELECT 
+                brand as name,
+                COUNT(DISTINCT truck_number) as active_trucks,
+                COUNT(id) as total_trips
+            FROM trips
+            WHERE trip_date BETWEEN ? AND ?
+            GROUP BY brand
+            ORDER BY total_trips DESC
+        `, [start, end]);
+
+        const brands = brandsRaw.map(b => {
+            const brandName = b.name ? b.name.toUpperCase() : 'UNKNOWN';
+            const cap = BRAND_CAPACITY[brandName] || 1;
+            const bTrips = Number(b.total_trips || 0);
+            const bActive = Number(b.active_trucks || 0);
+            return {
+                name: brandName,
+                capacity: cap,
+                active_trucks: bActive,
+                utilization_pct: Math.round((bActive / cap) * 100),
+                total_trips: bTrips,
+                trip_share: totalTrips > 0 ? Math.round((bTrips / totalTrips) * 100) : 0,
+                t_t: bActive > 0 ? (bTrips / bActive).toFixed(1) : "0.0"
+            };
+        });
+
+        // 4. TOP PERFORMERS: VOLUME
+        const [topVolume] = await pool.query(`
+            SELECT 
+                truck_number, MAX(brand) as brand, COUNT(id) as trips,
+                MAX(driver_name) as driver, MAX(fleet_manager) as fm
+            FROM trips
+            WHERE trip_date BETWEEN ? AND ?
+            GROUP BY truck_number
+            ORDER BY trips DESC
+            LIMIT 5
+        `, [start, end]);
+
+        // 5. TOP PERFORMERS: PROFIT
+        const [topProfit] = await pool.query(`
+            SELECT 
+                truck_number, MAX(fleet_manager) as fm, COUNT(id) as trips,
+                SUM(CASE WHEN trip_category = 'IT' THEN profit ELSE 0 END) as it_profit,
+                SUM(CASE WHEN trip_category != 'IT' THEN profit ELSE 0 END) as non_it_profit,
+                SUM(maintenance) as maintenance, SUM(profit) as net_profit
+            FROM trips
+            WHERE trip_date BETWEEN ? AND ?
+            GROUP BY truck_number
+            ORDER BY net_profit DESC
+            LIMIT 10
+        `, [start, end]);
+
+        return { summary, managers, brands, topVolume, topProfit };
+
+    } catch (error) {
+        console.error("Database Custom Range Error:", error);
+        throw new Error("Failed to query custom range analytics from database.");
     }
 };
 

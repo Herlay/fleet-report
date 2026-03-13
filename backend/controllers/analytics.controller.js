@@ -1,6 +1,25 @@
 import * as AnalyticsService from '../services/analytics.service.js';
 import { generateRangeInsights } from '../services/insights.service.js';
 import { generateDeepDiveReport } from '../services/ai.service.js'; 
+import { generateMonthlyDeepDive } from '../services/monthlyAiService.js';
+import { generateCustomRangeDeepDive } from '../services/customAiService.js';
+
+
+// Fixed capacities for your fleet
+const MANAGER_CAPACITY = {
+    'MICHAEL': 30,
+    'BENJAMIN': 35,
+    'FATAI': 25
+};
+
+const BRAND_CAPACITY = {
+    'HOWO': 30,
+    'IVECO': 23,
+    'MACK': 25,
+    'MAN TGA': 12
+};
+
+const TOTAL_FLEET_SIZE = 90;
 
 const getWeekRange = (week) => {
     const start = week;
@@ -149,18 +168,61 @@ export const getWeeklyReportAI = async (req, res) => {
 
 export const getMonthlyReportController = async (req, res) => {
     try {
-        const { month, year } = req.query; // These come from ?month=02&year=2026
+        const { month, year } = req.query;
 
-        // Call the service
-        const report = await AnalyticsService.getMonthlyExecutiveReport(month, year);
-        
-        res.json(report);
+        if (!month || !year) {
+            return res.status(400).json({ error: "Month and Year parameters are required." });
+        }
+
+        // 1. Fetch the raw structured data from your database service
+        const reportData = await AnalyticsService.getMonthlyExecutiveReport(month, year);
+
+        // 2. Format the month to ensure it's always 2 digits (e.g., '1' becomes '01') for the cache ID
+        const formattedMonth = String(month).padStart(2, '0');
+
+        // 3. Pass the data to the AI Service to generate the insights
+        const aiInsights = await generateMonthlyDeepDive(reportData, formattedMonth, year);
+
+        // 4. Merge the AI insights into the final payload and send to the frontend
+        res.status(200).json({
+            ...reportData,
+            ai_insights: aiInsights
+        });
+
     } catch (error) {
-        console.error("Controller Error:", error.message);
-        // This is what sends the 400 error to your console
-        res.status(400).json({ error: error.message });
+        console.error("Monthly Controller Error:", error.message);
+        res.status(500).json({ error: "Failed to generate monthly report." });
     }
 };
+
+export const getCustomReportController = async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+
+        if (!startDate || !endDate) {
+            return res.status(400).json({ error: "Start Date and End Date parameters are required." });
+        }
+
+        // 1. Fetch from Database using the correctly named service function
+        const reportData = await AnalyticsService.getCustomRangeReport(startDate, endDate);
+
+        // 2. Call AI
+        const cleanStartDate = String(startDate).trim();
+        const cleanEndDate = String(endDate).trim();
+        const aiInsights = await generateCustomRangeDeepDive(reportData, cleanStartDate, cleanEndDate);
+
+        // 3. THIS WAS MISSING! Send the response back to React.
+        res.status(200).json({
+            ...reportData,
+            ai_insights: aiInsights
+        });
+
+    } catch (error) {
+        console.error("Custom Range Controller Error:", error.message);
+        res.status(500).json({ error: "Failed to generate custom range report." });
+    }
+};
+
 export const getAllTrips = async (req, res) => {
     try {
         const rows = await AnalyticsService.fetchAllTrips(); 
