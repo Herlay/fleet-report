@@ -6,6 +6,7 @@ import UploadPage from './pages/UploadPage';
 import ReportPage from './pages/ReportPage';
 import MonthlyReportPage from './pages/MonthlyReportPage';
 import Trips from './pages/Trips';
+import CustomReportPage from './pages/CustomReportPage';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
         <Route path="/upload" element={<UploadPage />} />
         <Route path="/reports" element={<ReportPage />} />
         <Route path="/monthly_reports" element={<MonthlyReportPage />} />
+        <Route path="/custom_reports" element={<CustomReportPage />} />
         <Route path="/trips" element={<Trips />} />
       </Routes>
     </Layout>

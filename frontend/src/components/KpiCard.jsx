@@ -11,49 +11,63 @@ const KpiCard = ({ title, value, subtext, trend, icon: Icon, color = "blue", itV
   };
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
-      <div className="flex justify-between items-start mb-4">
+  
+    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow h-full flex flex-col min-h-[165px]">
+      
+      {/* Top Section*/}
+      <div className="flex justify-between items-start mb-auto">
         <div>
           <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
           <h3 className="text-2xl font-bold text-slate-800">{value}</h3>
         </div>
-        <div className={`p-3 rounded-lg ${colors[color]}`}>
+        <div className={`p-3 rounded-lg flex-shrink-0 ${colors[color]}`}>
           <Icon size={24} />
         </div>
       </div>
       
-      {trend !== undefined && (
-        <div className="flex items-center text-sm mb-2">
-          {trend > 0 ? (
-            <span className="text-green-600 flex items-center font-medium bg-green-50 px-2 py-0.5 rounded text-xs">
-              <ArrowUpRight size={14} className="mr-1" /> +{trend}%
-            </span>
-          ) : trend < 0 ? (
-            <span className="text-red-600 flex items-center font-medium bg-red-50 px-2 py-0.5 rounded text-xs">
-              <ArrowDownRight size={14} className="mr-1" /> {trend}%
-            </span>
-          ) : (
-             <span className="text-slate-400 flex items-center font-medium bg-slate-50 px-2 py-0.5 rounded text-xs">
-              <Minus size={14} className="mr-1" /> 0%
-            </span>
-          )}
-          <span className="text-slate-400 ml-2 text-xs">{subtext || "vs last week"}</span>
-        </div>
-      )}
+      {/* Middle Section: Trends  */}
+      <div className="mt-4">
+        {trend !== undefined ? (
+            <div className="flex items-center text-sm">
+            {trend > 0 ? (
+                <span className="text-green-600 flex items-center font-medium bg-green-50 px-2 py-0.5 rounded text-xs">
+                <ArrowUpRight size={14} className="mr-1" /> +{trend}%
+                </span>
+            ) : trend < 0 ? (
+                <span className="text-red-600 flex items-center font-medium bg-red-50 px-2 py-0.5 rounded text-xs">
+                <ArrowDownRight size={14} className="mr-1" /> {trend}%
+                </span>
+            ) : (
+                <span className="text-slate-400 flex items-center font-medium bg-slate-50 px-2 py-0.5 rounded text-xs">
+                <Minus size={14} className="mr-1" /> 0%
+                </span>
+            )}
+            <span className="text-slate-400 ml-2 text-xs truncate">{subtext || "vs last week"}</span>
+            </div>
+        ) : (
+          
+            <div className="h-5"></div>
+        )}
+      </div>
 
-      {/* IT vs Non-IT Breakdown */}
-      {(itValue || nonItValue) && (
-        <div className="pt-3 border-t border-slate-50 flex items-center justify-between mt-2">
-          <div className="text-[10px] leading-tight">
-            <span className="text-slate-400 block uppercase font-bold tracking-tighter">IT</span>
-            <span className="text-slate-700 font-semibold">{itValue || 0}</span>
-          </div>
-          <div className="text-[10px] leading-tight text-right">
-            <span className="text-slate-400 block uppercase font-bold tracking-tighter">Non-IT</span>
-            <span className="text-slate-700 font-semibold">{nonItValue || 0}</span>
-          </div>
-        </div>
-      )}
+      {/* Bottom Section: IT vs Non-IT Breakdown */}
+      <div className="mt-3 pt-3 border-t border-slate-50">
+        {(itValue || nonItValue) ? (
+            <div className="flex items-center justify-between">
+                <div className="text-[10px] leading-tight">
+                    <span className="text-slate-400 block uppercase font-bold tracking-tighter">IT</span>
+                    <span className="text-slate-700 font-semibold">{itValue || 0}</span>
+                </div>
+                <div className="text-[10px] leading-tight text-right">
+                    <span className="text-slate-400 block uppercase font-bold tracking-tighter">Non-IT</span>
+                    <span className="text-slate-700 font-semibold">{nonItValue || 0}</span>
+                </div>
+            </div>
+        ) : (
+   
+            <div className="h-6"></div>
+        )}
+      </div>
     </div>
   );
 };

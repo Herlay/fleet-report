@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import jsPDF from 'jspdf';
@@ -6,8 +6,7 @@ import html2canvas from 'html2canvas';
 import { saveAs } from 'file-saver';
 import { 
     ArrowLeft, Download, FileText, Calendar, Sparkles, 
-    Activity, Users, Target, Zap, TrendingUp, AlertCircle, 
-    Bold
+    Activity, Users, Target, Zap, TrendingUp 
 } from 'lucide-react';
 
 const isProduction = import.meta.env.PROD; 
@@ -19,6 +18,7 @@ const api = axios.create({
 
 const formatNaira = (num) => `₦${((num || 0) / 1000000).toFixed(1)}M`;
 const formatNairaFull = (num) => new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(num || 0);
+const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 const compactFmt = (v) => {
   const val = Number(v || 0);
   if (Math.abs(val) >= 1000000) {
@@ -28,26 +28,32 @@ const compactFmt = (v) => {
   }
   return `₦${val.toFixed(0)}`;
 };
-const MonthlyReportDashboard = () => {
-    const [selectedMonth, setSelectedMonth] = useState("2026-01");
+const CustomReportPage = () => {
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
     const reportRef = useRef();
 
-    useEffect(() => {
-        fetchReport();
-    }, [selectedMonth]);
-
     const fetchReport = async () => {
+        if (!startDate || !endDate) {
+            alert("Please select both a Start Date and an End Date.");
+            return;
+        }
+        if (new Date(startDate) > new Date(endDate)) {
+            alert("Start Date cannot be after End Date.");
+            return;
+        }
+
         setLoading(true);
         try {
-            const [year, month] = selectedMonth.split('-');
-            const response = await api.get('/api/analytics/monthly-report', {
-                params: { month, year }
+            const response = await api.get('/api/analytics/custom-report', {
+                params: { startDate, endDate }
             });
             setData(response.data);
         } catch (err) {
-            console.error("Failed to fetch report data:", err);
+            console.error("Failed to fetch custom report:", err);
+            alert("Failed to fetch report data. Please check console.");
         } finally {
             setLoading(false);
         }
@@ -107,14 +113,14 @@ const MonthlyReportDashboard = () => {
             pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
         }
         
-        pdf.save(`Monthly_Fleet_Report_${selectedMonth}.pdf`);
+        pdf.save(`Custom_Fleet_Report_${startDate}_to_${endDate}.pdf`);
     };
 
     // --- WORD EXPORT ---
     const downloadWord = () => {
         if (!reportRef.current) return;
 
-        const fileName = `Monthly_Fleet_Report_${selectedMonth}.doc`;
+        const fileName = `Custom_Fleet_Report_${startDate}_to_${endDate}.doc`;
 
         const fileHeader = `
             <html xmlns:o='urn:schemas-microsoft-com:office:office' 
@@ -124,7 +130,7 @@ const MonthlyReportDashboard = () => {
               <meta charset='utf-8'>
               <style>
                 @page Section1 {
-                  size: 595.3pt 841.9pt; /* A4 */
+                  size: 595.3pt 841.9pt; 
                   margin: 1.0in 0.75in 1.0in 0.75in;
                   mso-header-margin: 35.4pt;
                   mso-footer-margin: 35.4pt;
@@ -146,17 +152,14 @@ const MonthlyReportDashboard = () => {
 
         const fileFooter = "</div></body></html>";
 
-        // Clone the report and clean it
         const clone = reportRef.current.cloneNode(true);
         
-        // Remove things Word hates (Charts, SVGs, Buttons)
         const elementsToRemove = clone.querySelectorAll('.no-print, canvas, svg, button');
         elementsToRemove.forEach(el => el.remove());
 
-        // Fix Layout: Convert Grid/Flex to Tables
         const gridSections = clone.querySelectorAll('[style*="display: grid"], [style*="display: flex"]');
         gridSections.forEach(section => {
-            section.style.display = 'block'; // Fallback for Word
+            section.style.display = 'block'; 
         });
 
         const sourceHTML = fileHeader + clone.innerHTML + fileFooter;
@@ -165,92 +168,58 @@ const MonthlyReportDashboard = () => {
         saveAs(blob, fileName);
     };
 
-    const renderTrendRow = (label, key, dataArray, isProfit = false) => {
-        if (!dataArray || dataArray.length === 0) return null;
-        return (
-            <tr style={{ backgroundColor: 'transparent' }}>
-                <td style={{ padding: '10px', border: '1px solid #ddd', fontWeight: 'bold' }}>{label}</td>
-                {dataArray.map((t, i) => (
-                    <td key={i} style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 'normal' }}>
-                        {isProfit ? (t[key] / 1000000).toFixed(1) : (t[key] || 0)}
-                    </td>
-                ))}
-                {dataArray.map((t, i) => {
-                    if (i === 0) return null;
-                    const current = parseFloat(t[key] || 0);
-                    const previous = parseFloat(dataArray[i - 1][key] || 0);
-                    const change = previous !== 0 ? ((current - previous) / Math.abs(previous)) * 100 : 0;
-                    const isLatest = i === dataArray.length - 1;
-                    return (
-                        <td key={`pct-${i}`} style={{ 
-                            padding: '10px', border: '1px solid #ddd', textAlign: 'center',
-                            fontWeight: isLatest ? 'bold' : 'normal',
-                            backgroundColor: isLatest ? '#f0f9ff' : 'transparent',
-                            color: change >= 0 ? '#16a34a' : '#dc2626'
-                        }}>
-                            {change > 0 ? '+' : ''}{change.toFixed(0)}%
-                        </td>
-                    );
-                })}
-            </tr>
-        );
-    };
-
     const renderContent = () => {
         if (loading) return (
             <div className="w-full min-h-[400px] flex flex-col items-center justify-center bg-white rounded-xl shadow-sm border border-slate-100">
                 <Sparkles className="animate-pulse text-blue-600 mb-4" size={48} />
-                <p className="text-lg font-bold text-slate-700 italic">Gathering Monthly Reports...</p>
+                <p className="text-lg font-bold text-slate-700 italic">Analyzing Custom Date Range...</p>
             </div>
         );
 
-        if (!data) return null;
+        if (!data) return (
+            <div className="w-full p-10 sm:p-20 text-center text-slate-400 border-2 border-dashed rounded-xl bg-white/50">
+                <Calendar className="mx-auto mb-4 opacity-20" size={64} />
+                <p className="text-lg sm:text-xl font-medium">Select a Start and End date above to generate a custom report.</p>
+            </div>
+        );
 
         const { 
             summary = { financials: {} }, 
-            trends = [], 
             managers = [], 
-            managerTrends = [],
-            prevMonthName = "Prev",
-            currMonthName = "Curr",
             brands = [], 
-            brandTrends = [], 
             topVolume = [], 
             topProfit = [],
-            reportMonth = "Unknown",
             ai_insights = null 
         } = data;
-
-        const monthName = reportMonth.split(' ')[0] || "this period";
 
         return (
             <div ref={reportRef} className="bg-white w-full max-w-[210mm] sm:p-12 p-6 text-slate-800 shadow-2xl printable-area overflow-hidden">
                 
                 {/* Header */}
-                <div style={{ borderBottom: '5px solid #1e3a8a', paddingBottom: '15px', marginBottom: '25px' }}>
-                    <h1 style={{ fontSize: '20px', fontWeight: '900', color: '#d30e0e', margin: 0, textTransform: 'uppercase' }}>
-                        Monthly Performance Report 
+                <div style={{ borderBottom: '5px solid #095e09', paddingBottom: '15px', marginBottom: '25px' }}>
+                    <h1 style={{ fontSize: '20px', fontWeight: '900', color: '#095e09', margin: 0, textTransform: 'uppercase' }}>
+                        Custom Performance Report
                     </h1>
-                    <p style={{ fontSize: '13px', color: '#d30e0e', fontWeight: 'bold', marginTop: '5px' }}>
-                        {reportMonth}
+                    <p style={{ fontSize: '13px', color: '#000408', fontWeight: 'bold', marginTop: '5px' }}>
+                        {formatDate(startDate)} — {formatDate(endDate)}
                     </p>
                 </div>
 
                 {/* EXECUTIVE SUMMARY */}
                 <section style={{ marginBottom: '30px' }}>
                     <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e3a8a', borderBottom: '1px solid #e2e8f0', paddingBottom: '5px', marginBottom: '10px' }}>Executive Summary</h3>
-                    <p style={{ fontSize: '12px', lineHeight: '1.7', fontWeight:'Bold', textAlign: 'justify', color: '#161e29' }}>
-                        {ai_insights?.executive_summary || `This report provides an overview of fleet performance across four Brands — HOWO, IVECO, MAN TGA, and MACK for ${monthName}. It focuses on key metrics such as Trips, revenue, profit and fleet utilization.`}
+                    <p style={{ fontSize: '12px', lineHeight: '1.7', textAlign: 'justify', fontWeight:'bold', color: '#090e16' }}>
+                        {ai_insights?.executive_summary || "This report provides an overview of fleet performance for the selected custom date range, focusing on absolute metrics without historical trend comparisons."}
                     </p>
                 </section>
 
                 {/* OVERALL FLEET PERFORMANCE */}
                 <section style={{ marginBottom: '35px' }}>
                     <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '12px', textTransform: 'uppercase' }}>
-                        🚚 Overall Fleet Performance - {monthName}
+                        🚚 Aggregate Fleet Performance
                     </h3>
                     
-                    <div className="overflow-x-auto">
+                    <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', minWidth: '500px', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '20px', backgroundColor: '#fff' }}>
                             <thead>
                                 <tr style={{ backgroundColor: '#1e3a8a', color: '#ffffff' }}>
@@ -260,20 +229,13 @@ const MonthlyReportDashboard = () => {
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontWeight: 'bold' }}>Total Trips By Inhouse</td>
+                                    <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontWeight: 'bold' }}>Total Trips Volume</td>
                                     <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: '900', fontSize: '14px', color: '#1e3a8a' }}>
                                         {summary.total_inhouse_trips || 0}
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontWeight: 'bold' }}>Trips Growth (MoM)</td>
-                                    <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold', color: (summary.trips_growth_val || 0) >= 0 ? '#16a34a' : '#dc2626' }}>
-                                        {(summary.trips_growth_val || 0) > 0 ? '+' : ''}{summary.trips_growth_val || 0} 
-                                        <span style={{ color: '#64748b', fontSize: '10px', marginLeft: '4px' }}>({summary.trips_growth_pct || 0}%)</span>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontWeight: 'bold' }}>Active Trucks</td>
+                                    <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontWeight: 'bold' }}>Unique Active Trucks</td>
                                     <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: '900', fontSize: '14px', color: '#1e3a8a' }}>
                                         {summary.active_trucks || 0}
                                     </td>
@@ -295,68 +257,39 @@ const MonthlyReportDashboard = () => {
                     </div>
 
                     <div style={{ padding: '20px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', sm: {flexDirection: 'row'}, justifyContent: 'space-between', marginBottom: '15px' }}>
-                            <strong style={{ color: '#1e3a8a', fontSize: '13px' }}>Financial Performance Statement</strong>
-                        </div>
-                        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', marginBottom: '15px' }}>
+        <strong style={{ color: '#1e3a8a', fontSize: '13px' }}>Period Financial Performance Statement</strong>
+    </div>
+    
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
+        {/* Gross Profit */}
+        <div style={{ padding: '12px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+            <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Gross Revenue/Profit</div>
+            {/* UPDATED: Using compactFmt */}
+            <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>
+                {compactFmt(summary.financials?.gross)}
+            </div>
+        </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
-    {/* Gross Profit */}
-    <div style={{ padding: '12px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-        <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Gross Profit</div>
-        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>
-            {compactFmt(summary.financials?.gross)}
+        {/* Maintenance */}
+        <div style={{ padding: '12px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+            <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Maintenance Spend</div>
+            {/* UPDATED: Using compactFmt */}
+            <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#dc2626' }}>
+                - {compactFmt(summary.financials?.maintenance)}
+            </div>
         </div>
-    </div>
-    <div style={{ padding: '12px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-        <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Maintenance Spend</div>
-        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#dc2626' }}>
-            - {compactFmt(summary.financials?.maintenance)}
-        </div>
-    </div>
-    <div style={{ backgroundColor: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-        <div style={{ fontSize: '10px', color: '#16a34a', fontWeight: 'bold', textTransform: 'uppercase' }}>Net Profit</div>
-        <div style={{ fontSize: '22px', fontWeight: '900', color: '#16a34a' }}>
-            {compactFmt(summary.financials?.net)}
-        </div>
-    </div>
-                    </div>
-                </section>
 
-                {/* TREND ANALYSIS */}
-                <section style={{ marginBottom: '40px' }}>
-                    <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '15px' }}>
-                        📈 {trends.length}-Month Trend Analysis: Commercial Performance
-                    </h3>
-                    <div className="overflow-x-auto">
-                        <table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', fontSize: '10px', marginBottom: '20px' }}>
-                            <thead>
-                                <tr style={{ backgroundColor: '#f1f5f9', color: '#1e3a8a' }}>
-                                    <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Performance Metric</th>
-                                    {trends.map((t, i) => (
-                                        <th key={`head-${i}`} style={{ padding: '10px', border: '1px solid #ddd', backgroundColor: i === trends.length - 1 ? '#eff6ff' : 'transparent' }}>
-                                            {t.month_label}
-                                        </th>
-                                    ))}
-                                    {trends.map((t, i) => {
-                                        if (i === 0) return null;
-                                        const isLatest = i === trends.length - 1;
-                                        return (
-                                            <th key={`pct-head-${i}`} style={{ padding: '5px', border: '1px solid #ddd', fontSize: '9px', backgroundColor: isLatest ? '#1e3a8a' : '#f8fafc', color: isLatest ? '#fff' : '#1e3a8a' }}>
-                                                % Chg ({t.month_label})
-                                            </th>
-                                        );
-                                    })}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {renderTrendRow("Total Trips", "trips", trends)}
-                                {renderTrendRow("Active Trucks", "active_trucks", trends)}
-                                {renderTrendRow("T/T Efficiency", "t_t", trends)}
-                                {renderTrendRow("Net Profit (Millions)", "net_profit", trends, true)}
-                            </tbody>
-                        </table>
-                    </div>
+        {/* Net Profit */}
+        <div style={{ backgroundColor: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontSize: '10px', color: '#16a34a', fontWeight: 'bold', textTransform: 'uppercase' }}>Net Profit</div>
+            {/* UPDATED: Using compactFmt */}
+            <div style={{ fontSize: '22px', fontWeight: '900', color: '#16a34a' }}>
+                {compactFmt(summary.financials?.net)}
+            </div>
+        </div>
+    </div>
+</div>
                 </section>
 
                 {/* FLEET MANAGER INSIGHT */}
@@ -365,36 +298,42 @@ const MonthlyReportDashboard = () => {
                         <Users size={18} /> Fleet Manager Performance
                     </h3>
                     
-                    <div className="overflow-x-auto">
+                    <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '10px', marginBottom: '24px' }}>
                             <thead>
                                 <tr style={{ backgroundColor: '#1e3a8a', color: '#fff' }}>
-                                    <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'left' }}>Manager (Trucks)</th>
+                                    <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'left' }}>Fleet Managers (Total)</th>
                                     <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Active Trucks</th>
                                     <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>% Utilized</th>
                                     <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Trips</th>
                                     <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>% Trips</th>
                                     <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>T/T Ratio</th>
-                                    <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Target Hit</th>
                                     <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'right' }}>Net Profit</th>
+                                    <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'right' }}>Avg/Unit</th>
                                 </tr>
                             </thead>
-                          <tbody>
+                            <tbody>
   {managers.map((m, i) => (
     <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
       <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', fontWeight: 'bold', color: '#1e293b' }}>
         {m.name || 'Unknown'} ({m.capacity || 0})
       </td>
-      <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold' }}>{m.active_trucks || 0}</td>
+      <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold' }}>
+        {m.active_trucks || 0}
+      </td>
       <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>{m.utilization_pct || 0}%</td>
       <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold' }}>{m.total_trips || 0}</td>
       <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', color: '#64748b' }}>{m.trip_share || 0}%</td>
       <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold', color: '#1e3a8a', backgroundColor: '#f1f5f9' }}>{m.t_t || 0}</td>
-      <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold', color: (m.target_pct || 0) >= 100 ? '#16a34a' : '#ea580c' }}>{m.target_pct || 0}%</td>
       
-      {/* UPDATED: Changed formatNairaFull to compactFmt */}
+      {/* UPDATED: Total Net Profit (Compact) */}
       <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'right', fontWeight: 'bold' }}>
         {compactFmt(m.profit)}
+      </td>
+      
+      {/* UPDATED: Avg Profit (Compact) */}
+      <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'right', fontWeight: '500' }}>
+        {compactFmt(m.avg_profit)}
       </td>
     </tr>
   ))}
@@ -402,18 +341,17 @@ const MonthlyReportDashboard = () => {
                         </table>
                     </div>
 
-                  {/* AI MANAGER INSIGHT */}
-{ai_insights?.manager_insights && (
-    <div className="ai-callout bg-teal-50/50 p-5 rounded-xl border border-teal-100 shadow-sm mt-4">
-        <h4 className="font-bold text-teal-900 mb-2 text-xs uppercase tracking-wider flex items-center gap-2" style={{color:"#134e4a", backgroundColor:"transparent", padding:"0"}}>
-            <span className="text-base">✨</span>Fleet Manager Performance Insights
-        </h4>
-        {/* Changed text-lg sm:text-base to text-xs sm:text-sm */}
-        <p className="text-[6px] sm:text-sm leading-tight text-slate-600 text-justify m-0" style={{ fontSize: '11px', color: 'black', fontWeight: 'bold'}}>
-            {ai_insights.manager_insights}
-        </p>
-    </div>
-)}
+                    {/* AI MANAGER INSIGHT */}
+                    {ai_insights?.manager_insights && (
+                        <div style={{ padding: '20px', backgroundColor: '#eff6ff', borderLeft: '5px solid #1e3a8a', borderRadius: '4px' }}>
+                            <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '10px', textTransform: 'uppercase' }}>
+                               Fleet Manager Perfromance Analysis
+                            </h4>
+                            <p style={{ fontSize: '11.5px', color: '#1e293b', lineHeight: '1.6', textAlign: 'justify', margin: 0 }}>
+                                {ai_insights.manager_insights}
+                            </p>
+                        </div>
+                    )}
                 </section>
 
                 {/* BRAND PERFORMANCE BREAKDOWN */}
@@ -421,7 +359,7 @@ const MonthlyReportDashboard = () => {
                     <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '15px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '10px' }}>
                         🚚 Brand Performance
                     </h3>
-                    <div className="overflow-x-auto">
+                    <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', minWidth: '500px', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '25px' }}>
                             <thead>
                                 <tr style={{ backgroundColor: '#1e3a8a', color: '#fff' }}>
@@ -450,54 +388,15 @@ const MonthlyReportDashboard = () => {
                     
                     {/* AI BRAND ANALYSIS */}
                     {ai_insights?.brand_insights && (
-                        <div className="ai-callout bg-teal-50/50 p-5 rounded-xl border border-teal-100 shadow-sm mt-4">
-                            <h4 className="font-bold text-teal-900 mb-2 text-sm uppercase tracking-wider flex items-center gap-2" style={{color:"#134e4a", backgroundColor:"transparent", padding:"0"}}>
-                                <span className="text-lg">✨</span> Brand Performance Insights
+                        <div style={{ padding: '20px', backgroundColor: '#f0fdf4', borderLeft: '5px solid #16a34a', borderRadius: '4px' }}>
+                            <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#16a34a', marginBottom: '10px', textTransform: 'uppercase' }}>
+                               Brand Performance Analysis
                             </h4>
-                                 <p className="text-xs sm:text-sm leading-relaxed text-slate-700 text-justify m-0"  style={{ fontSize: '11px', color: 'black', fontWeight: 'bold'}}>
+                            <p style={{ fontSize: '11.5px', color: '#1e293b', lineHeight: '1.6', textAlign: 'justify', margin: 0 }}>
                                 {ai_insights.brand_insights}
                             </p>
                         </div>
                     )}
-                </section>
-
-                {/* MANAGER MoM TRENDS */}
-                <section style={{ marginBottom: '40px', backgroundColor: '#fff', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                    <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '15px', textTransform: 'uppercase' }}>
-                        📈 Fleet Managers MoM Trend ({prevMonthName} vs {currMonthName})
-                    </h3>
-                    <div className="overflow-x-auto">
-                        <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '10px', marginBottom: '25px' }}>
-                            <thead>
-                                <tr style={{ backgroundColor: '#475569', color: '#fff' }}>
-                                    <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Fleet Manager (Total)</th>
-                                    <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center' }}>Trips (Curr)</th>
-                                    <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center' }}>Trips (Prev)</th>
-                                    <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center', backgroundColor: '#334155' }}>% Chg</th>
-                                    <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center' }}>T/T (Curr / Prev)</th>
-                                    <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center' }}>Net Profit (Curr)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {managerTrends.map((mt, idx) => {
-                                    const isNegative = mt.change.includes('-');
-                                    const isPositive = mt.change.includes('+');
-                                    return (
-                                        <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                                            <td style={{ padding: '10px', border: '1px solid #ddd', fontWeight: 'bold' }}>{mt.manager} ({mt.capacity})</td>
-                                            <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 'bold' }}>{mt.currentMonthDisplay}</td>
-                                            <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center', color: '#64748b' }}>{mt.lastMonthDisplay}</td>
-                                            <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 'bold', color: isNegative ? '#dc2626' : isPositive ? '#16a34a' : '#64748b' }}>{mt.change}</td>
-                                            <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center' }}>
-                                                <span style={{ fontWeight: 'bold', color: '#1e3a8a' }}>{mt.t_t}</span> / <span style={{ color: '#94a3b8' }}>{mt.prev_t_t}</span>
-                                            </td>
-                                            <td style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 'bold', color: '#16a34a' }}>{formatNaira(mt.profit)}</td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
                 </section>
 
                 {/* TOP PERFORMERS SECTION */}
@@ -505,13 +404,13 @@ const MonthlyReportDashboard = () => {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '25px' }}>
                         
                         {/* TOP VOLUME */}
-                        <div className="overflow-x-auto">
-                            <h3 style={{ fontSize: '12px', fontWeight: 'bold', color: '#16a34a', marginBottom: '10px', textTransform: 'uppercase' }}>🏅 Top 5 Trucks (Trips)</h3>
+                        <div style={{ overflowX: 'auto' }}>
+                            <h3 style={{ fontSize: '12px', fontWeight: 'bold', color: '#16a34a', marginBottom: '10px', textTransform: 'uppercase' }}>🏅 Top 5 Volume (Trips)</h3>
                             <table style={{ width: '100%', minWidth: '300px', borderCollapse: 'collapse', fontSize: '9px' }}>
                                 <thead>
                                     <tr style={{ backgroundColor: '#16a34a', color: '#fff' }}>
                                         <th style={{ padding: '6px', border: '1px solid #ddd' }}>Truck</th>
-                                        <th style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center' }}>Brand</th>
+                                        <th style={{ padding: '6px', border: '1px solid #ddd' }}>Brand</th>
                                         <th style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center' }}>Trips</th>
                                         <th style={{ padding: '6px', border: '1px solid #ddd' }}>Manager</th>
                                     </tr>
@@ -531,8 +430,8 @@ const MonthlyReportDashboard = () => {
                         </div>
                         
                         {/* TOP PROFIT */}
-                        <div className="overflow-x-auto">
-                            <h3 style={{ fontSize: '12px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '10px', textTransform: 'uppercase' }}>💰 Top 5 Truck Profit Makers</h3>
+                        <div style={{ overflowX: 'auto' }}>
+                            <h3 style={{ fontSize: '12px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '10px', textTransform: 'uppercase' }}>💰 Top 5 Profit Makers</h3>
                             <table style={{ width: '100%', minWidth: '300px', borderCollapse: 'collapse', fontSize: '9px' }}>
                                 <thead>
                                     <tr style={{ backgroundColor: '#1e3a8a', color: '#fff' }}>
@@ -559,13 +458,9 @@ const MonthlyReportDashboard = () => {
 
                     {/* AI TOP PERFORMER INSIGHT */}
                     {ai_insights?.top_performer_insights && (
-                        <div className="ai-callout bg-teal-50/50 p-5 rounded-xl border border-teal-100 shadow-sm mt-4">
-                            <h4 className="font-bold text-teal-900 mb-2 text-sm uppercase tracking-wider flex items-center gap-2" style={{color:"#134e4a", backgroundColor:"transparent", padding:"0"}}>
-                                <span className="text-lg">✨</span> Trucks Performance Insights
-                            </h4>
-                           <p className="text-xs sm:text-sm leading-relaxed text-slate-700 text-justify m-0"  style={{ fontSize: '11px', color: 'black', fontWeight: 'bold'}}>
-                            {ai_insights.top_performer_insights}
-                            </p>
+                        <div style={{ marginTop: '15px', padding: '12px', backgroundColor: '#fffbeb', borderRadius: '8px', fontSize: '11px', fontStyle: 'italic', border: '1px solid #fef3c7', textAlign: 'justify' }}>
+                            <TrendingUp size={14} className="inline mr-2 text-amber-600"/>
+                            <strong style={{ color: '#d97706' }}>Trucks Performance Insight:</strong> {ai_insights.top_performer_insights}
                         </div>
                     )}
                 </section>
@@ -575,33 +470,52 @@ const MonthlyReportDashboard = () => {
     };
 
     return (
-        <div className="bg-slate-100 min-h-screen p-4 sm:p-10 font-sans text-slate-800 tracking-wide">
+        <div className="bg-slate-100 min-h-screen p-4 sm:p-10 font-sans">
             <div className="max-w-[1100px] mx-auto space-y-6">
                 
                 {/* Top Control Bar */}
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 no-print flex flex-col md:flex-row justify-between gap-4 items-center">
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-                        <Link to="/" className="text-slate-500 font-bold flex items-center gap-2 transition-colors hover:text-blue-600 text-sm sm:text-base mr-4">
-                            <ArrowLeft size={18}/> BACK 
-                        </Link>
                         <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Month</span>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Start</span>
                             <input 
-                                type="month" 
-                                value={selectedMonth} 
-                                onChange={(e) => setSelectedMonth(e.target.value)} 
-                                className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none font-bold" 
+                                type="date" 
+                                value={startDate} 
+                                onChange={(e) => setStartDate(e.target.value)} 
+                                className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none" 
                             />
                         </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">End</span>
+                            <input 
+                                type="date" 
+                                value={endDate} 
+                                onChange={(e) => setEndDate(e.target.value)} 
+                                className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none" 
+                            />
+                        </div>
+                        <button 
+                            onClick={fetchReport} 
+                            disabled={loading}
+                            className="bg-blue-600 text-white px-5 py-2 rounded-lg font-bold text-sm shadow hover:bg-blue-700 transition-all disabled:opacity-50"
+                        >
+                            {loading ? 'Loading...' : 'Generate Report for the Range'}
+                        </button>
                     </div>
+                </div>
 
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 no-print">
+                    <Link to="/" className="text-slate-500 font-bold flex items-center gap-2 transition-colors hover:text-blue-600 text-sm sm:text-base">
+                        <ArrowLeft size={18}/> BACK TO DASHBOARD
+                    </Link>
+                    
                     {data && (
-                        <div className="flex w-full md:w-auto gap-3">
-                            <button onClick={downloadWord} className="flex-1 md:flex-none justify-center bg-blue-100 text-blue-800 px-5 py-2.5 rounded-xl font-bold text-xs shadow-sm hover:bg-blue-200 transition-all flex items-center gap-2">
-                                <FileText size={16}/> Download as Document
-                            </button>
-                            <button onClick={downloadPDF} className="flex-1 md:flex-none justify-center bg-red-600 text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow-lg hover:bg-red-700 transition-all flex items-center gap-2">
+                        <div className="flex w-full sm:w-auto gap-3">
+                            <button onClick={downloadPDF} className="flex-1 sm:flex-none justify-center bg-red-600 text-white px-5 sm:px-6 py-2.5 rounded-xl font-bold text-xs shadow-lg hover:bg-red-700 transition-all flex items-center gap-2">
                                 <Download size={16}/> Download as PDF
+                            </button>
+                            <button onClick={downloadWord} className="flex-1 sm:flex-none justify-center bg-blue-700 text-white px-5 sm:px-6 py-2.5 rounded-xl font-bold text-xs shadow-lg hover:bg-blue-800 transition-all flex items-center gap-2">
+                                <FileText size={16}/> Download as WORD
                             </button>
                         </div>
                     )}
@@ -613,4 +527,4 @@ const MonthlyReportDashboard = () => {
     );
 };
 
-export default MonthlyReportDashboard;
+export default CustomReportPage;

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, Upload, Truck, Menu, X, Calendar } from 'lucide-react';
+import { LayoutDashboard, FileText, Upload, Truck, Menu, X, Calendar, CalendarDays } from 'lucide-react';
 
 const SidebarItem = ({ icon: Icon, label, to, onClick }) => (
 
@@ -27,8 +27,9 @@ const Layout = ({ children }) => {
   const menuItems = [
     { path: '/', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/upload', label: 'Data Upload', icon: Upload },
-    { path: '/reports', label: 'Reports', icon: FileText },
+    { path: '/reports', label: 'Weekly Reports', icon: FileText },
     { path: '/monthly_reports', label: 'Monthly Reports', icon: Calendar },
+    { path: '/custom_reports', label: 'Custom Reports', icon: CalendarDays },
     { path: '/trips', label: 'All Trips', icon: Truck },
   ];
 

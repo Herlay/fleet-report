@@ -1,32 +1,29 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { format, addDays, subDays, startOfDay, isBefore } from 'date-fns';
-import { Filter, Calendar as CalendarIcon, ChevronRight, AlertCircle } from 'lucide-react';
+import { format, addDays, startOfDay, isBefore } from 'date-fns';
+import { Filter, Calendar as CalendarIcon, ChevronRight } from 'lucide-react';
 
-const FilterBar = ({ onFilterChange }) => {
+/**
+ * @param {Function} onFilterChange - Callback function
+ * @param {Boolean} hideCustom - If true, hides the custom range toggle (useful for fixed-week reports)
+ */
+const FilterBar = ({ onFilterChange, hideCustom = false }) => {
   const [scope, setScope] = useState('weekly');
   const [year] = useState(new Date().getFullYear());
   const [week, setWeek] = useState(1);
   
-  // Set default custom dates to current month range or today
   const [customStart, setCustomStart] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [customEnd, setCustomEnd] = useState(format(new Date(), 'yyyy-MM-dd'));
 
   const weeksArray = useMemo(() => Array.from({ length: 52 }, (_, i) => i + 1), []);
 
-  /**
-   * Helper: Finds the first Friday of the year for business logic
-   */
   const getFirstFridayOfYear = (targetYear) => {
     let date = new Date(targetYear, 0, 1);
-    while (date.getDay() !== 5) { // 5 = Friday
+    while (date.getDay() !== 5) {
       date.setDate(date.getDate() + 1);
     }
     return date;
   };
 
-  /**
-   * Weekly Logic: Friday to Thursday
-   */
   const getWeekRange = (targetYear, weekNo) => {
     const firstFriday = getFirstFridayOfYear(targetYear);
     const start = addDays(firstFriday, (weekNo - 1) * 7);
@@ -37,21 +34,19 @@ const FilterBar = ({ onFilterChange }) => {
   useEffect(() => {
     let start, end, label, absoluteWeek;
 
-    if (scope === 'weekly') {
+    // Safety check: if hideCustom is true, force scope to 'weekly'
+    const activeScope = hideCustom ? 'weekly' : scope;
+
+    if (activeScope === 'weekly') {
       const range = getWeekRange(year, week);
       start = range.start;
       end = range.end;
       absoluteWeek = week;
       label = `WEEK ${week}`;
     } else {
-      /**
-       * CUSTOM RANGE FIX: 
-       * We no longer "Snap to Friday". We use the exact dates from the picker.
-       */
       start = startOfDay(new Date(customStart));
       end = startOfDay(new Date(customEnd));
       
-      // If user picks dates out of order, force start to end to prevent API crash
       if (isBefore(end, start)) {
         end = start;
       }
@@ -65,12 +60,12 @@ const FilterBar = ({ onFilterChange }) => {
       endDate: format(end, 'yyyy-MM-dd'),
       label,
       absoluteWeek,
-      isCustom: scope === 'custom'
+      isCustom: activeScope === 'custom'
     });
-  }, [scope, year, week, customStart, customEnd, onFilterChange]);
+  }, [scope, year, week, customStart, customEnd, onFilterChange, hideCustom]);
 
   return (
-    <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-4 no-print transition-all">
+    <div className="mt-6 bg-white w-full p-5 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-4 no-print transition-all"> 
       
       {/* Scope Indicator */}
       <div className="flex items-center px-3 py-1.5 bg-slate-50 rounded-lg text-slate-500 border border-slate-100">
@@ -78,25 +73,32 @@ const FilterBar = ({ onFilterChange }) => {
         <span className="font-bold text-[10px] uppercase tracking-widest">Reporting Period</span>
       </div>
 
-      {/* Toggle Buttons */}
-      <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
-        {['weekly', 'custom'].map((type) => (
-          <button
-            key={type}
-            onClick={() => setScope(type)}
-            className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all capitalize ${
-              scope === type ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            {type === 'weekly' ? 'Fixed Weeks' : 'Custom Range'}
-          </button>
-        ))}
-      </div>
+      {/* Toggle Buttons - Hidden if hideCustom is true */}
+      {!hideCustom ? (
+        <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+          {['weekly', 'custom'].map((type) => (
+            <button
+              key={type}
+              onClick={() => setScope(type)}
+              className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all capitalize ${
+                scope === type ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {type === 'weekly' ? 'Fixed Weeks' : 'Custom Range'}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="px-4 py-1.5 text-xs font-bold text-blue-700 bg-white border border-slate-200 rounded-lg shadow-sm">
+          Fixed Weeks
+        </div>
+      )}
 
       <div className="h-6 w-[1px] bg-slate-200 mx-1 hidden md:block" />
 
       {/* Conditional Inputs */}
-      {scope === 'weekly' ? (
+      {/* If hideCustom is true, it only ever shows the weekly selector */}
+      {(hideCustom || scope === 'weekly') ? (
         <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-2 duration-300">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold text-slate-400 uppercase">Week No.</span>
