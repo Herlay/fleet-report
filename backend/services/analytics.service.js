@@ -578,8 +578,31 @@ export const getMonthlyExecutiveReport = async (month, year) => {
             pool.query(`SELECT COUNT(*) as prev_trips FROM trips WHERE trip_date BETWEEN DATE_SUB(?, INTERVAL 1 MONTH) AND LAST_DAY(DATE_SUB(?, INTERVAL 1 MONTH)) AND ${isNonIT}`, [startDate, startDate]),
             // 2: Monthly Trends
             pool.query(`SELECT DATE_FORMAT(trip_date, '%b') as month_label, COUNT(DISTINCT CASE WHEN ${isNonIT} THEN truck_number END) as active_trucks, SUM(CASE WHEN ${isNonIT} THEN 1 ELSE 0 END) as trips, SUM(CASE WHEN ${isNonIT} THEN (COALESCE(profit,0) - COALESCE(maintenance,0)) ELSE 0 END) as net_profit FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY YEAR(trip_date), MONTH(trip_date), month_label ORDER BY YEAR(trip_date) ASC, MONTH(trip_date) ASC`, [lookbackDate, endDate]),
-            // 3: Managers (Current)
-            pool.query(`SELECT UPPER(TRIM(main.fleet_manager)) as name, COUNT(DISTINCT main.truck_number) as active_trucks_total, COUNT(DISTINCT CASE WHEN ${isNonIT} THEN main.truck_number END) as active_trucks_non_it, SUM(CASE WHEN ${isNonIT} THEN 1 ELSE 0 END) as trips_non_it, SUM(COALESCE(main.profit, 0) - COALESCE(main.maintenance, 0)) as net_profit_total, COALESCE(target_data.met_target_count, 0) as trucks_met_target FROM trips main LEFT JOIN (SELECT manager_name, COUNT(*) as met_target_count FROM (SELECT UPPER(TRIM(fleet_manager)) as manager_name, truck_number FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(fleet_manager)), truck_number HAVING COUNT(*) >= 3) as inner_counts GROUP BY manager_name) as target_data ON UPPER(TRIM(main.fleet_manager)) = target_data.manager_name WHERE main.trip_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(main.fleet_manager))`, [startDate, endDate, startDate, endDate]),
+            // 3: Managers (Current)// 3: Managers (Current)
+pool.query(`
+    SELECT 
+        UPPER(TRIM(main.fleet_manager)) as name, 
+        COUNT(DISTINCT main.truck_number) as active_trucks_total, 
+        COUNT(DISTINCT CASE WHEN ${isNonIT} THEN main.truck_number END) as active_trucks_non_it, 
+        SUM(CASE WHEN ${isNonIT} THEN 1 ELSE 0 END) as trips_non_it, 
+        SUM(COALESCE(main.profit, 0) - COALESCE(main.maintenance, 0)) as net_profit_total, 
+        COALESCE(MAX(target_data.met_target_count), 0) as trucks_met_target 
+    FROM trips main 
+    LEFT JOIN (
+        SELECT manager_name, COUNT(*) as met_target_count 
+        FROM (
+            SELECT UPPER(TRIM(fleet_manager)) as manager_name, truck_number 
+            FROM trips 
+            WHERE trip_date BETWEEN ? AND ? 
+            GROUP BY UPPER(TRIM(fleet_manager)), truck_number 
+            HAVING COUNT(*) >= 3
+        ) as inner_counts 
+        GROUP BY manager_name
+    ) as target_data ON UPPER(TRIM(main.fleet_manager)) = target_data.manager_name 
+    WHERE main.trip_date BETWEEN ? AND ? 
+    GROUP BY UPPER(TRIM(main.fleet_manager))
+`, [startDate, endDate, startDate, endDate]),
+    
             // 4: Brand Breakdown
             pool.query(`SELECT COALESCE(brand, 'Unknown') as name, COUNT(DISTINCT truck_number) as active_trucks_non_it, SUM(1) as trips_non_it FROM trips WHERE trip_date BETWEEN ? AND ? AND ${isNonIT} GROUP BY brand`, [startDate, endDate]),
             // 5: Brand Trends (WoW)
