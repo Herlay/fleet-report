@@ -403,10 +403,10 @@ export const getWeeklyReportMetrics = async (startDate, endDate, absoluteWeek = 
             // --- ISOLATED MAINTENANCE QUERIES ---
             pool.query(`SELECT COALESCE(SUM(amount), 0) as maint FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ?`, [s, e]),
             pool.query(`SELECT DATE_SUB(maintenance_date, INTERVAL (WEEKDAY(DATE_SUB(maintenance_date, INTERVAL 4 DAY))) DAY) as week_start_date, SUM(amount) as maint FROM maintenance_logs WHERE maintenance_date <= ? GROUP BY week_start_date`, [e]),
-            pool.query(`SELECT UPPER(TRIM(t.fleet_manager)) as name, SUM(m.amount) as maint FROM maintenance_logs m JOIN (SELECT truck_number, MAX(fleet_manager) as fleet_manager FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number) t ON m.truck_number = t.truck_number WHERE m.maintenance_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(t.fleet_manager))`, [s, e, s, e]),
+            pool.query(`SELECT UPPER(TRIM(t.fleet_manager)) as name, SUM(m.amount) as maint FROM maintenance_logs m JOIN (SELECT truck_number, MAX(fleet_manager) as fleet_manager FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number) t ON m.truck_number COLLATE utf8mb4_general_ci = t.truck_number COLLATE utf8mb4_general_ci WHERE m.maintenance_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(t.fleet_manager))`, [s, e, s, e]),
             pool.query(`SELECT truck_number, SUM(amount) as maint FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ? GROUP BY truck_number`, [s, e]),
             pool.query(`SELECT COALESCE(SUM(amount), 0) as maint FROM maintenance_logs WHERE maintenance_date BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND DATE_SUB(?, INTERVAL 7 DAY)`, [s, e]),
-            pool.query(`SELECT UPPER(TRIM(t.fleet_manager)) as name, SUM(m.amount) as maint FROM maintenance_logs m JOIN (SELECT truck_number, MAX(fleet_manager) as fleet_manager FROM trips WHERE trip_date BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND DATE_SUB(?, INTERVAL 7 DAY) GROUP BY truck_number) t ON m.truck_number = t.truck_number WHERE m.maintenance_date BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND DATE_SUB(?, INTERVAL 7 DAY) GROUP BY UPPER(TRIM(t.fleet_manager))`, [s, e, s, e])
+            pool.query(`SELECT UPPER(TRIM(t.fleet_manager)) as name, SUM(m.amount) as maint FROM maintenance_logs m JOIN (SELECT truck_number, MAX(fleet_manager) as fleet_manager FROM trips WHERE trip_date BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND DATE_SUB(?, INTERVAL 7 DAY) GROUP BY truck_number) t ON m.truck_number COLLATE utf8mb4_general_ci = t.truck_number COLLATE utf8mb4_general_ci WHERE m.maintenance_date BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND DATE_SUB(?, INTERVAL 7 DAY) GROUP BY UPPER(TRIM(t.fleet_manager))`, [s, e, s, e])
         ]);
 
         // --- DATA PROCESSING ---
@@ -643,10 +643,10 @@ export const getMonthlyExecutiveReport = async (month, year) => {
             pool.query(`SELECT DATE_FORMAT(maintenance_date, '%b') as month_label, YEAR(maintenance_date) as y, MONTH(maintenance_date) as m, SUM(amount) as maint FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ? GROUP BY y, m, month_label`, [lookbackDate, endDate]),
             
             // 12: Mgr Maintenance (Current)
-            pool.query(`SELECT UPPER(TRIM(t.fleet_manager)) as name, SUM(m.amount) as maint FROM maintenance_logs m JOIN (SELECT truck_number, MAX(fleet_manager) as fleet_manager FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number) t ON m.truck_number = t.truck_number WHERE m.maintenance_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(t.fleet_manager))`, [startDate, endDate, startDate, endDate]),
+            pool.query(`SELECT UPPER(TRIM(t.fleet_manager)) as name, SUM(m.amount) as maint FROM maintenance_logs m JOIN (SELECT truck_number, MAX(fleet_manager) as fleet_manager FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number) t ON m.truck_number COLLATE utf8mb4_general_ci = t.truck_number COLLATE utf8mb4_general_ci WHERE m.maintenance_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(t.fleet_manager))`, [startDate, endDate, startDate, endDate]),
             
             // 13: Mgr Maintenance (Prev)
-            pool.query(`SELECT UPPER(TRIM(t.fleet_manager)) as name, SUM(m.amount) as maint FROM maintenance_logs m JOIN (SELECT truck_number, MAX(fleet_manager) as fleet_manager FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number) t ON m.truck_number = t.truck_number WHERE m.maintenance_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(t.fleet_manager))`, [prevStartDate, prevEndDate, prevStartDate, prevEndDate]),
+            pool.query(`SELECT UPPER(TRIM(t.fleet_manager)) as name, SUM(m.amount) as maint FROM maintenance_logs m JOIN (SELECT truck_number, MAX(fleet_manager) as fleet_manager FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number) t ON m.truck_number COLLATE utf8mb4_general_ci = t.truck_number COLLATE utf8mb4_general_ci WHERE m.maintenance_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(t.fleet_manager))`, [prevStartDate, prevEndDate, prevStartDate, prevEndDate]),
             
             // 14: Truck Maintenance (Current)
             pool.query(`SELECT truck_number, SUM(amount) as maint FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ? GROUP BY truck_number`, [startDate, endDate])
@@ -862,7 +862,7 @@ export const getCustomRangeReport = async (startDate, endDate) => {
             pool.query(`
                 SELECT UPPER(TRIM(t.fleet_manager)) as name, SUM(m.amount) as maint 
                 FROM maintenance_logs m 
-                JOIN (SELECT truck_number, MAX(fleet_manager) as fleet_manager FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number) t ON m.truck_number = t.truck_number 
+                JOIN (SELECT truck_number, MAX(fleet_manager) as fleet_manager FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number) t ON m.truck_number COLLATE utf8mb4_general_ci = t.truck_number COLLATE utf8mb4_general_ci 
                 WHERE m.maintenance_date BETWEEN ? AND ? 
                 GROUP BY UPPER(TRIM(t.fleet_manager))
             `, [start, end, start, end]),
