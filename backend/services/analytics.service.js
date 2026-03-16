@@ -1041,13 +1041,15 @@ export const getMaintenanceDashboardData = async (startDate, endDate) => {
                 ORDER BY date ASC
             `, [start, end]),
 
-            // 4. Brand Distribution
+            // 4. Brand Distribution (JOINS TRIPS TO GET BRAND)
             pool.query(`
-                SELECT COALESCE(brand, 'UNKNOWN') as brand, SUM(amount) as brand_spend 
-                FROM maintenance_logs 
-                WHERE maintenance_date BETWEEN ? AND ? 
-                  AND UPPER(TRIM(truck_number)) != 'NON-TRUCK'
-                GROUP BY brand 
+                SELECT COALESCE(t.brand, 'UNKNOWN') as brand, SUM(m.amount) as brand_spend 
+                FROM maintenance_logs m
+                LEFT JOIN (SELECT truck_number, MAX(brand) as brand FROM trips GROUP BY truck_number) t 
+                  ON m.truck_number COLLATE utf8mb4_general_ci = t.truck_number COLLATE utf8mb4_general_ci
+                WHERE m.maintenance_date BETWEEN ? AND ? 
+                  AND UPPER(TRIM(m.truck_number)) != 'NON-TRUCK'
+                GROUP BY t.brand 
                 ORDER BY brand_spend DESC
             `, [start, end]),
 
@@ -1061,33 +1063,37 @@ export const getMaintenanceDashboardData = async (startDate, endDate) => {
                 GROUP BY category
             `, [start, end]),
 
-            // 6. Top 10 Offenders (Most Expensive Trucks)
+            // 6. Top 10 Offenders (Most Expensive Trucks - JOINS TRIPS TO GET BRAND)
             pool.query(`
                 SELECT 
-                    truck_number, 
-                    COALESCE(MAX(brand), 'UNKNOWN') as brand, 
-                    COUNT(record_id) as visit_count, 
-                    SUM(amount) as total_spend 
-                FROM maintenance_logs 
-                WHERE maintenance_date BETWEEN ? AND ? 
-                  AND UPPER(TRIM(truck_number)) != 'NON-TRUCK'
-                GROUP BY truck_number 
+                    m.truck_number, 
+                    COALESCE(MAX(t.brand), 'UNKNOWN') as brand, 
+                    COUNT(m.record_id) as visit_count, 
+                    SUM(m.amount) as total_spend 
+                FROM maintenance_logs m
+                LEFT JOIN (SELECT truck_number, MAX(brand) as brand FROM trips GROUP BY truck_number) t 
+                  ON m.truck_number COLLATE utf8mb4_general_ci = t.truck_number COLLATE utf8mb4_general_ci
+                WHERE m.maintenance_date BETWEEN ? AND ? 
+                  AND UPPER(TRIM(m.truck_number)) != 'NON-TRUCK'
+                GROUP BY m.truck_number 
                 ORDER BY total_spend DESC 
                 LIMIT 10
             `, [start, end]),
 
-            // 7. Full Ledger (For the data table)
+            // 7. Full Ledger (For the data table - JOINS TRIPS TO GET BRAND)
             pool.query(`
                 SELECT 
-                    DATE_FORMAT(maintenance_date, '%Y-%m-%d') as date, 
-                    item_description, 
-                    amount, 
-                    UPPER(TRIM(truck_number)) as truck_number, 
-                    fleet_name, 
-                    COALESCE(brand, 'UNKNOWN') as brand 
-                FROM maintenance_logs 
-                WHERE maintenance_date BETWEEN ? AND ? 
-                ORDER BY maintenance_date DESC, amount DESC
+                    DATE_FORMAT(m.maintenance_date, '%Y-%m-%d') as date, 
+                    m.item_description, 
+                    m.amount, 
+                    UPPER(TRIM(m.truck_number)) as truck_number, 
+                    m.fleet_name, 
+                    COALESCE(t.brand, 'UNKNOWN') as brand 
+                FROM maintenance_logs m
+                LEFT JOIN (SELECT truck_number, MAX(brand) as brand FROM trips GROUP BY truck_number) t 
+                  ON m.truck_number COLLATE utf8mb4_general_ci = t.truck_number COLLATE utf8mb4_general_ci
+                WHERE m.maintenance_date BETWEEN ? AND ? 
+                ORDER BY m.maintenance_date DESC, m.amount DESC
             `, [start, end])
         ]);
 
