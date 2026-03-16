@@ -27,7 +27,7 @@ export const processExcelFile = async (buffer) => {
     const tripsRecords = [];
     let tripsSkipped = 0;
 
-    console.log(`🚀 Processing Trips: ${tripsSheet.name}. Total Rows: ${tripsSheet.rowCount}`);
+    console.log(`Processing Trips: ${tripsSheet.name}. Total Rows: ${tripsSheet.rowCount}`);
 
     for (let i = 3; i <= tripsSheet.rowCount; i++) {
         const row = tripsSheet.getRow(i);
@@ -100,7 +100,7 @@ export const processExcelFile = async (buffer) => {
     const maintRecords = [];
     
     if (maintSheet) {
-        console.log(`🔧 Processing Maintenance: ${maintSheet.name}. Total Rows: ${maintSheet.rowCount}`);
+        console.log(`Processing Maintenance: ${maintSheet.name}. Total Rows: ${maintSheet.rowCount}`);
         
         // Assuming your headers are on row 1, data starts on row 2
         for (let i = 2; i <= maintSheet.rowCount; i++) {
@@ -118,10 +118,9 @@ export const processExcelFile = async (buffer) => {
             // Only insert if it has a date, amount, and truck assigned
             if (parsedDate && amount > 0 && truckNo) {
                 
-                // 🔥 THE MAGIC: Create a unique signature for this exact repair
-                // Example: "2025-12-31_T11971LA_30000_offaite_repair..."
+               
                 const rawSignature = `${parsedDate}_${truckNo}_${amount}_${itemDesc || 'no_desc'}`;
-                // Remove spaces and special characters to make it a clean database ID
+              
                 const uniqueKey = rawSignature.replace(/[^a-zA-Z0-9_-]/g, '').substring(0, 200);
 
                 maintRecords.push([
