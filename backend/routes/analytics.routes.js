@@ -7,7 +7,8 @@ import {
  getWeeklyReportAI,
  getAllTrips,
  getMonthlyReportController,
- getCustomReportController
+ getCustomReportController,
+ getMaintenanceReportController
 } from '../controllers/analytics.controller.js';
 
 const router = express.Router();
@@ -20,5 +21,6 @@ router.get('/weekly-report-ai', getWeeklyReportAI);
 router.get('/monthly-report', getMonthlyReportController);
 router.get('/trips-all', getAllTrips);
 router.get('/custom-report', getCustomReportController);
+router.get('/maintenance/report', getMaintenanceReportController);
 
 export default router;

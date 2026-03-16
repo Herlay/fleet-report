@@ -76,10 +76,7 @@ export const getRangeData = async (startDate, endDate, groupBy = 'day') => {
     }
 };
 
-/**
- * AI REPORTING SERVICE
- * Updated to send absoluteWeek for continuity logic
- */
+// AI Report
 export const getWeeklyReportAI = async (startDate, endDate, absoluteWeek = null) => {
     try {
         const response = await api.get('/api/analytics/weekly-report-ai', {
@@ -96,9 +93,7 @@ export const getWeeklyReportAI = async (startDate, endDate, absoluteWeek = null)
     }
 };
 
-/**
- * MONTHLY EXECUTIVE REPORTING SERVICE
- */
+//Monthly Repory
 export const getMonthlyExecutiveReport = async (dateStr) => {
     try {
         // dateStr is "2026-02"
@@ -110,6 +105,17 @@ export const getMonthlyExecutiveReport = async (dateStr) => {
         return response.data;
     } catch (error) {
         console.error("Monthly Report API Error:", error.response?.data?.error || error.message);
+        throw error;
+    }
+};
+
+//Maintenance Report
+export const getMaintenanceReportData = async (startDate, endDate) => {
+    try {
+        const response = await api.get(`/api/analytics/maintenance/report?startDate=${startDate}&endDate=${endDate}`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching maintenance report:", error);
         throw error;
     }
 };

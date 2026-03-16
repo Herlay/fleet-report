@@ -758,7 +758,7 @@ const ReportPage = () => {
                     <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'left' }}>FM</th>
                     <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'left' }}>Brand</th>
                     <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>Gross Profit</th>
-                    <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>Maint.</th>
+                    <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>Maintenance</th>
                     <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>Net Profit</th>
                   </tr>
                 </thead>
@@ -798,7 +798,7 @@ const ReportPage = () => {
                     <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'left' }}>Fleet Manager</th>
                     <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'left' }}>Brand</th>
                     <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>Gross Profit</th>
-                    <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>Maint.</th>
+                    <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>Maintenance</th>
                     <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>Net Profit</th>
                   </tr>
                 </thead>

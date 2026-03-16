@@ -223,6 +223,33 @@ export const getCustomReportController = async (req, res) => {
     }
 };
 
+export const getMaintenanceReportController = async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+
+        if (!startDate || !endDate) {
+            return res.status(400).json({ 
+                success: false, 
+                error: "Start Date and End Date are required." 
+            });
+        }
+
+        const reportData = await AnalyticsService.getMaintenanceDashboardData(startDate, endDate);
+    
+        res.status(200).json({
+            success: true,
+            data: reportData
+        });
+
+    } catch (error) {
+        console.error("Maintenance Controller Error:", error);
+        res.status(500).json({ 
+            success: false, 
+            error: "Failed to fetch maintenance report." 
+        });
+    }
+};
+
 export const getAllTrips = async (req, res) => {
     try {
         const rows = await AnalyticsService.fetchAllTrips(); 

@@ -353,7 +353,7 @@ const MonthlyReportDashboard = () => {
                                 {renderTrendRow("Total Trips", "trips", trends)}
                                 {renderTrendRow("Active Trucks", "active_trucks", trends)}
                                 {renderTrendRow("T/T Efficiency", "t_t", trends)}
-                                {renderTrendRow("Net Profit (Millions)", "net_profit", trends, true)}
+                                {renderTrendRow("Net Profit", "net_profit", trends, true)}
                             </tbody>
                         </table>
                     </div>
