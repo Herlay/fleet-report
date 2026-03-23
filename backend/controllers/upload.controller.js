@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { processExcelFile } from '../services/excel.service.js';
 
-
 export const uploadTripData = async (req, res) => {
     try {
         if (!req.file) {
@@ -47,8 +46,16 @@ export const handleGoogleSheet = async (req, res) => {
 
         console.log("Downloading from Google:", downloadUrl);
 
-        // Fetch the file from Google
-        const response = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
+        // --- CRITICAL FIX: Add Anti-Bot Headers to prevent ECONNRESET ---
+        const response = await axios.get(downloadUrl, { 
+            responseType: 'arraybuffer',
+            timeout: 15000, // Wait up to 15 seconds before failing
+            headers: {
+                // Trick Google into thinking this is a real browser
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+            }
+        });
         
         const result = await processExcelFile(response.data);
 
@@ -63,7 +70,15 @@ export const handleGoogleSheet = async (req, res) => {
     } catch (error) {
         console.error("Google Sync Error:", error);
         
-        // Axios permission
+        // Custom check for the ECONNRESET network drop
+        if (error.code === 'ECONNRESET') {
+            return res.status(500).json({
+                success: false,
+                error: "Connection dropped by Google. Please try syncing again."
+            });
+        }
+
+        // Axios permission check
         const status = error.response ? error.response.status : 500;
         const errorMessage = status === 404 || status === 403 
             ? "Access Denied. Please ensure the Google Sheet is shared as 'Anyone with the link can view'."

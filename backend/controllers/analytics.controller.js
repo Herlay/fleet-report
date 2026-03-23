@@ -7,19 +7,19 @@ import { generateCustomRangeDeepDive } from '../services/customAiService.js';
 
 // Fixed capacities for your fleet
 const MANAGER_CAPACITY = {
-    'MICHAEL': 30,
+    'MICHAEL': 29,
     'BENJAMIN': 35,
-    'FATAI': 25
+    'FATAI': 16
 };
 
 const BRAND_CAPACITY = {
-    'HOWO': 30,
+    'HOWO': 29,
     'IVECO': 23,
-    'MACK': 25,
+    'MACK': 16,
     'MAN TGA': 12
 };
 
-const TOTAL_FLEET_SIZE = 90;
+const TOTAL_FLEET_SIZE = 80;
 
 const getWeekRange = (week) => {
     const start = week;

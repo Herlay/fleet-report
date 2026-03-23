@@ -152,7 +152,7 @@ const Trips = () => {
                                 <th style={{ padding: '15px' }}>ROUTE</th>
                                 <th style={{ padding: '15px' }}>CATEGORY</th>
                                 <th style={{ padding: '15px', textAlign: 'right' }}>FUEL</th>
-                                <th style={{ padding: '15px', textAlign: 'right' }}>MAINTENANCE</th>
+                             
                                 <th style={{ padding: '15px', textAlign: 'right' }}>NET PROFIT</th>
                                 <th style={{ padding: '10px 1px' }}>FLEET MANAGER</th>
                             </tr>
@@ -180,7 +180,6 @@ const Trips = () => {
                                         </span>
                                     </td>
                                     <td style={{ padding: '15px', textAlign: 'right', fontWeight: '500' }}>{fmt(t.fuel_cost)}</td>
-                                    <td style={{ padding: '15px', textAlign: 'right', color: '#dc2626', fontWeight: '500' }}>{fmt(t.maintenance)}</td>
                                     <td style={{ padding: '15px', textAlign: 'right', color: '#16a34a', fontWeight: '900' }}>{fmt(t.profit)}</td>
                                     <td style={{ padding: '15px 20px', color: '#64748b', fontSize: '11px', fontWeight: '500' }}>{t.fleet_manager}</td>
                                 </tr>

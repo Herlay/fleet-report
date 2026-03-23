@@ -8,10 +8,10 @@ import { generateDeepDiveReport } from '../services/ai.service.js';
  */
 
 const FLEET_CONFIG = {
-    TOTAL: 90,
-    HOWO: 30,
+    TOTAL: 80,
+    HOWO: 29,
     IVECO: 23,
-    MACK: 25,
+    MACK: 16,
     'MAN TGA': 12
 };
 
@@ -492,7 +492,7 @@ export const getWeeklyReportMetrics = async (startDate, endDate, absoluteWeek = 
             }));
 
         // Fleet Manager Mapping
-        const MANAGER_CAPS = { 'BENJAMIN': 35, 'MICHAEL': 30, 'FATAI': 25 };
+        const MANAGER_CAPS = { 'BENJAMIN': 35, 'MICHAEL': 29, 'FATAI': 16 };
         const totalPrevActive = (fmPrevTrucksRes[0] || []).reduce((sum, m) => sum + (m.prev_active || 0), 0);
 
         const managers = (managerTripsRes[0] || []).map(cm => {

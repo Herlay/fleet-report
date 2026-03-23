@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import uploadRoutes from './routes/upload.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
+import adminRoutes from './routes/admin.routes.js';
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // ROUTES
 app.use('/api/upload', uploadRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.get('/', (req, res) => {
   res.json({
