@@ -1,4 +1,3 @@
-
 import { ManagementClient } from 'auth0/legacy';
 import nodemailer from 'nodemailer';
 
@@ -23,9 +22,11 @@ const transporter = nodemailer.createTransport({
     rejectUnauthorized: false
   },
   connectionTimeout: 10000, 
+  // 👇 CRITICAL FIX: Forces IPv4 to bypass Render's network glitch 👇
+  family: 4 
 });
 
-//Gett all users
+// Get all users
 export const getPendingUsers = async (req, res) => {
   try {
     // We use users.getAll() - it's the most compatible
@@ -49,7 +50,7 @@ export const getPendingUsers = async (req, res) => {
   }
 };
 
-//Approve User
+// Approve User
 export const approveUser = async (req, res) => {
   const { email, userId } = req.body;
 
@@ -87,16 +88,26 @@ export const approveUser = async (req, res) => {
       `
     };
 
-    await transporter.sendMail(mailOptions);
+    // 4. Try to send the email (Wrapped in its own try/catch)
+    try {
+      await transporter.sendMail(mailOptions);
+      res.status(200).json({ success: true, message: `Approved and emailed ${email}.` });
+    } catch (emailError) {
+      console.error("Email failed to send, but user is approved in Auth0:", emailError);
+      // We still return 200 OK because the Auth0 approval worked!
+      res.status(200).json({ 
+        success: true, 
+        message: `User approved in Auth0, but the welcome email failed to send (Render Port blocked). Setup link: ${inviteUrl}` 
+      });
+    }
 
-    res.status(200).json({ success: true, message: `Approved and emailed ${email}.` });
   } catch (error) {
     console.error("Approval Error:", error);
     res.status(500).json({ success: false, message: "Error during approval." });
   }
 };
 
-//Reject User
+// Reject User
 export const rejectUser = async (req, res) => {
   const { userId } = req.body;
   try {
