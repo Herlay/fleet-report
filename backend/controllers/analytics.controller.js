@@ -3,23 +3,7 @@ import { generateRangeInsights } from '../services/insights.service.js';
 import { generateDeepDiveReport } from '../services/ai.service.js'; 
 import { generateMonthlyDeepDive } from '../services/monthlyAiService.js';
 import { generateCustomRangeDeepDive } from '../services/customAiService.js';
-
-
-// Fixed capacities for your fleet
-const MANAGER_CAPACITY = {
-    'MICHAEL': 29,
-    'BENJAMIN': 35,
-    'FATAI': 16
-};
-
-const BRAND_CAPACITY = {
-    'HOWO': 29,
-    'IVECO': 23,
-    'MACK': 16,
-    'MAN TGA': 12
-};
-
-const TOTAL_FLEET_SIZE = 80;
+import pool from '../config/db.js'; // Needed for the new capacity routes
 
 const getWeekRange = (week) => {
     const start = week;
@@ -45,7 +29,6 @@ export const getDashboardMetrics = async (req, res) => {
         }
 
         const { start, endStr } = getWeekRange(week);
-
 
         const [summary, managers, top_performers, topBrands] = await Promise.all([
             AnalyticsService.getWeeklySummary(week),
@@ -174,16 +157,10 @@ export const getMonthlyReportController = async (req, res) => {
             return res.status(400).json({ error: "Month and Year parameters are required." });
         }
 
-        // 1. Fetch the raw structured data from your database service
         const reportData = await AnalyticsService.getMonthlyExecutiveReport(month, year);
-
-        // 2. Format the month to ensure it's always 2 digits (e.g., '1' becomes '01') for the cache ID
         const formattedMonth = String(month).padStart(2, '0');
-
-        // 3. Pass the data to the AI Service to generate the insights
         const aiInsights = await generateMonthlyDeepDive(reportData, formattedMonth, year);
 
-        // 4. Merge the AI insights into the final payload and send to the frontend
         res.status(200).json({
             ...reportData,
             ai_insights: aiInsights
@@ -203,15 +180,11 @@ export const getCustomReportController = async (req, res) => {
             return res.status(400).json({ error: "Start Date and End Date parameters are required." });
         }
 
-        // 1. Fetch from Database using the correctly named service function
         const reportData = await AnalyticsService.getCustomRangeReport(startDate, endDate);
-
-        // 2. Call AI
         const cleanStartDate = String(startDate).trim();
         const cleanEndDate = String(endDate).trim();
         const aiInsights = await generateCustomRangeDeepDive(reportData, cleanStartDate, cleanEndDate);
 
-        // 3. THIS WAS MISSING! Send the response back to React.
         res.status(200).json({
             ...reportData,
             ai_insights: aiInsights
@@ -260,39 +233,54 @@ export const getAllTrips = async (req, res) => {
     }
 };
 
-// export const getReportController = async (req,res)=>{
 
-//     try{
+// ============================================================================
+// --- NEW ADMIN FLEET CAPACITY CONTROLLERS ---
+// ============================================================================
 
-//         const { startDate, endDate, absoluteWeek } = req.body;
+// 1. Get Current Capacities (To display on the Admin Page)
+export const getCurrentCapacities = async (req, res) => {
+    try {
+        const sql = `
+            SELECT c1.entity_type, c1.entity_name, c1.capacity, c1.effective_date
+            FROM fleet_capacities c1
+            INNER JOIN (
+                SELECT entity_type, entity_name, MAX(effective_date) as max_date
+                FROM fleet_capacities
+                WHERE effective_date <= CURRENT_DATE()
+                GROUP BY entity_type, entity_name
+            ) c2 ON c1.entity_type = c2.entity_type 
+                 AND c1.entity_name = c2.entity_name 
+                 AND c1.effective_date = c2.max_date
+            ORDER BY c1.entity_type DESC, c1.entity_name ASC
+        `;
+        const [rows] = await pool.query(sql);
+        res.status(200).json({ success: true, data: rows });
+    } catch (error) {
+        console.error("Error fetching capacities:", error);
+        res.status(500).json({ success: false, error: "Failed to fetch capacities." });
+    }
+};
 
-//         let result;
+// 2. Save a New Capacity Rule
+export const updateFleetCapacity = async (req, res) => {
+    try {
+        const { effectiveDate, type, name, newCapacity } = req.body;
 
-//         if(absoluteWeek){
-//             result = await getWeeklyReportMetrics(
-//                 startDate,
-//                 endDate,
-//                 absoluteWeek
-//             );
-//         }
-//         else{
-//             result = await getRangeReportMetrics(
-//                 startDate,
-//                 endDate
-//             );
-//         }
+        if (!effectiveDate || !type || !name || newCapacity === undefined) {
+            return res.status(400).json({ success: false, error: "Missing required fields." });
+        }
 
-//         res.json({
-//             success:true,
-//             data:result
-//         });
+        const sql = `
+            INSERT INTO fleet_capacities (effective_date, entity_type, entity_name, capacity) 
+            VALUES (?, ?, UPPER(TRIM(?)), ?)
+            ON DUPLICATE KEY UPDATE capacity = VALUES(capacity)
+        `;
+        await pool.query(sql, [effectiveDate, type, name, newCapacity]);
 
-//     }catch(error){
-//         console.error(error);
-//         res.status(500).json({
-//             success:false,
-//             message:"Report generation failed"
-//         });
-//     }
-
-// };
+        res.status(200).json({ success: true, message: "Capacity updated successfully!" });
+    } catch (error) {
+        console.error("Error updating capacity:", error);
+        res.status(500).json({ success: false, error: "Failed to update fleet capacity." });
+    }
+};

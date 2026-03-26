@@ -11,6 +11,7 @@ const api = axios.create({
         'Content-Type': 'application/json',
     },
 });
+
 /**
  * FILE UPLOAD SERVICES
  */
@@ -132,5 +133,34 @@ export const getAllTrips = async () => {
 };
 
 
+/**
+ * ==========================================
+ * FLEET CAPACITY ADMIN SERVICES
+ * ==========================================
+ */
+
+// 1. Fetch the currently active limits from the database
+export const getCurrentCapacities = async () => {
+    try {
+        // ADDED /analytics TO THE URL
+        const response = await api.get('/api/analytics/capacity/current');
+        return response.data;
+    } catch (error) {
+        console.error("Fetch Capacities Error:", error);
+        throw error;
+    }
+};
+
+// 2. Submit a new limit change to the database
+export const updateFleetCapacity = async (capacityData) => {
+    try {
+        // ADDED /analytics TO THE URL
+        const response = await api.post('/api/analytics/capacity/update', capacityData);
+        return response.data;
+    } catch (error) {
+        console.error("Update Capacity Error:", error);
+        throw error;
+    }
+};
 
 export default api;

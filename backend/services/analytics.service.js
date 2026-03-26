@@ -1,44 +1,56 @@
 import pool from '../config/db.js';
 import { generateDeepDiveReport } from '../services/ai.service.js';
 
-/*
-- Fleet Size
-- Returns the total number of trucks seen in the database
-- Metrics for Utilization.
- */
+// ============================================================================
+// HELPER: Dynamic Capacity Fetcher
+// Fetches the historically accurate fleet capacities for ANY given date!
+// ============================================================================
+export const getCapacitiesForDate = async (targetDate) => {
+    const sql = `
+        SELECT c1.entity_type, c1.entity_name, c1.capacity
+        FROM fleet_capacities c1
+        INNER JOIN (
+            SELECT entity_type, entity_name, MAX(effective_date) as max_date
+            FROM fleet_capacities
+            WHERE effective_date <= ?
+            GROUP BY entity_type, entity_name
+        ) c2 ON c1.entity_type = c2.entity_type 
+             AND c1.entity_name = c2.entity_name 
+             AND c1.effective_date = c2.max_date
+    `;
+    const [rows] = await pool.query(sql, [targetDate]);
+    
+    const TOTAL = rows.find(r => r.entity_type === 'TOTAL')?.capacity || 90;
+    const MANAGER_CAPS = {};
+    const BRAND_CAPS = {};
+    
+    rows.forEach(r => {
+        if (r.entity_type === 'MANAGER') MANAGER_CAPS[r.entity_name.toUpperCase()] = r.capacity;
+        if (r.entity_type === 'BRAND') BRAND_CAPS[r.entity_name.toUpperCase()] = r.capacity;
+    });
 
-const FLEET_CONFIG = {
-    TOTAL: 80,
-    HOWO: 29,
-    IVECO: 23,
-    MACK: 16,
-    'MAN TGA': 12
+    return { TOTAL, MANAGER_CAPS, BRAND_CAPS };
 };
+
+// ============================================================================
 
 export const getTotalFleetSize = async () => {
     const [rows] = await pool.query('SELECT COUNT(DISTINCT truck_number) as total FROM trips');
     return rows[0].total || 0;
 };
 
-/*
- - Getting the Weekly Summary
- - Aggregations for a single week (defined by week_start_date)
- */
 export const getWeeklySummary = async (weekStartDate) => {
-    const totalFleet = await getTotalFleetSize();
+    // Dynamically fetch capacity for this week
+    const { TOTAL: totalFleet } = await getCapacitiesForDate(weekStartDate);
 
     const sql = `
         SELECT 
             COUNT(*) as total_trips,
-            -- IT vs Non-IT Trip Counts
             SUM(CASE WHEN trip_category = 'IT' THEN 1 ELSE 0 END) as it_trips,
             SUM(CASE WHEN trip_category != 'IT' OR trip_category IS NULL THEN 1 ELSE 0 END) as non_it_trips,
-            
             SUM(profit) as total_profit,
-            -- IT vs Non-IT Profit
             SUM(CASE WHEN trip_category = 'IT' THEN profit ELSE 0 END) as it_profit,
             SUM(CASE WHEN trip_category != 'IT' OR trip_category IS NULL THEN profit ELSE 0 END) as non_it_profit,
-            
             AVG(profit) as avg_profit_per_trip,
             COUNT(DISTINCT truck_number) as active_trucks,
             SUM(road_expenses) as total_expenses,
@@ -58,23 +70,13 @@ export const getWeeklySummary = async (weekStartDate) => {
     };
 };
 
-/*
- -Trends (Multi-Week)
- - Returns metrics for the past weeks for charts.
- */
 export const getTrends = async (limit = 4) => {
-    const totalFleet = 90; // Using your hardcoded fleet config
-
     const sql = `
         SELECT 
             uploaded_week as week,
-            -- Non-IT Trip Volume
             SUM(CASE WHEN trip_category != 'IT' OR trip_category IS NULL THEN 1 ELSE 0 END) as non_it_trips,
-            -- Total Trips (including IT)
             COUNT(*) as total_trips,
-            -- Net Profit (Revenue/Profit column - Maintenance)
             SUM(profit - maintenance) as net_profit,
-            -- Total Active Trucks (The denominator for T/T)
             COUNT(DISTINCT truck_number) as active_trucks
         FROM trips
         WHERE uploaded_week IS NOT NULL
@@ -91,18 +93,14 @@ export const getTrends = async (limit = 4) => {
         
         return {
             week: row.week,
-            trips: nonItTrips, // Using non-it trips for the "Volume" metric as per your request
+            trips: nonItTrips, 
             profit: parseFloat(row.net_profit || 0),
             active_trucks: activeTrucks,
-            // T/T Calculation: Non-IT Trips divided by Active Trucks
             efficiency: activeTrucks > 0 ? (nonItTrips / activeTrucks).toFixed(1) : "0.0"
         };
-    }).reverse(); // Reverse so it displays Week 1 -> Week 4 in the table
+    }).reverse(); 
 };
 
-/*
-Fleet Managers Ranking
- */
 export const getManagerRankings = async (weekStartDate) => {
     const sql = `
         SELECT 
@@ -125,7 +123,6 @@ export const getManagerRankings = async (weekStartDate) => {
     }));
 };
 
-//To find which trucks cost the most to maintain.
 export const getBrandStats = async (startDate, endDate) => {
     const sql = `
         SELECT 
@@ -143,7 +140,6 @@ export const getBrandStats = async (startDate, endDate) => {
     return rows;
 };
 
-//Comparison between the profitabkle routes and the less profitable ones. 
 export const getRouteStats = async (startDate, endDate) => {
     const sql = `
         SELECT 
@@ -160,21 +156,17 @@ export const getRouteStats = async (startDate, endDate) => {
     return rows;
 };
 
-// Get Summary for any Date Range
 export const getRangeSummary = async (startDate, endDate) => {
-    const totalFleet = await getTotalFleetSize();
+    const { TOTAL: totalFleet } = await getCapacitiesForDate(endDate);
 
-    // 1. Fetch Trips Data (Gross Profit, Counts, Expenses)
     const sqlTrips = `
         SELECT 
             COUNT(*) as total_trips,
             SUM(CASE WHEN trip_category = 'IT' THEN 1 ELSE 0 END) as it_trips,
             SUM(CASE WHEN trip_category != 'IT' OR trip_category IS NULL THEN 1 ELSE 0 END) as non_it_trips,
-            
             SUM(profit) as total_profit,
             SUM(CASE WHEN trip_category = 'IT' THEN profit ELSE 0 END) as it_profit,
             SUM(CASE WHEN trip_category != 'IT' OR trip_category IS NULL THEN profit ELSE 0 END) as non_it_profit,
-            
             AVG(profit) as avg_profit_per_trip,
             COUNT(DISTINCT truck_number) as active_trucks,
             SUM(road_expenses + dispatch + fuel_cost) as total_expenses
@@ -182,14 +174,12 @@ export const getRangeSummary = async (startDate, endDate) => {
         WHERE trip_date BETWEEN ? AND ?
     `;
 
-    // 2. Fetch True Maintenance Data from the dedicated table
     const sqlMaint = `
         SELECT COALESCE(SUM(amount), 0) as total_maintenance 
         FROM maintenance_logs 
         WHERE maintenance_date BETWEEN ? AND ?
     `;
 
-    // 3. Run both queries concurrently for maximum speed
     const [tripsRes, maintRes] = await Promise.all([
         pool.query(sqlTrips, [startDate, endDate]),
         pool.query(sqlMaint, [startDate, endDate])
@@ -200,7 +190,7 @@ export const getRangeSummary = async (startDate, endDate) => {
 
     return {
         ...data,
-        total_maintenance: totalMaint, // Injects the real maintenance total here
+        total_maintenance: totalMaint, 
         utilization_rate: totalFleet > 0 ? ((data.active_trucks / totalFleet) * 100).toFixed(1) : 0,
         avg_trips_per_truck: data.active_trucks > 0 ? (data.total_trips / data.active_trucks).toFixed(1) : 0,
         total_fleet: totalFleet
@@ -208,7 +198,6 @@ export const getRangeSummary = async (startDate, endDate) => {
 };
 
 
- //Get Trends grouped by Day, Week, or Month
 export const getRangeTrends = async (startDate, endDate, intervalFormat) => {
     const sql = `
         SELECT 
@@ -225,7 +214,6 @@ export const getRangeTrends = async (startDate, endDate, intervalFormat) => {
     return rows;
 };
 
-//Top Managers for Date Range
 export const getRangeManagers = async (startDate, endDate) => {
     const sql = `
         SELECT 
@@ -233,7 +221,6 @@ export const getRangeManagers = async (startDate, endDate) => {
             COUNT(*) as trips,
             COUNT(DISTINCT truck_number) as active_trucks,
             SUM(profit) as profit,
-            -- Calculate efficiency directly in SQL
             ROUND(COUNT(*) / COUNT(DISTINCT truck_number), 1) as efficiency
         FROM trips
         WHERE trip_date BETWEEN ? AND ?
@@ -244,7 +231,6 @@ export const getRangeManagers = async (startDate, endDate) => {
     return rows;
 };
 
-//Top Performing Trucks
 export const getTopTrucks = async (startDate, endDate) => {
     const sql = `
         SELECT 
@@ -257,8 +243,6 @@ export const getTopTrucks = async (startDate, endDate) => {
         FROM trips
         WHERE trip_date BETWEEN ? AND ?
         GROUP BY truck_number
-        /* Combined into a single ORDER BY. 
-           This sorts by highest profit, then by most trips */
         ORDER BY profit DESC, trips DESC
         LIMIT 10
     `;
@@ -270,7 +254,7 @@ export const getTopTrucks = async (startDate, endDate) => {
         return [];
     }
 };
-//Top Performing Brands
+
 export const getTopBrands = async (startDate, endDate) => {
     const query = `
         SELECT 
@@ -287,7 +271,6 @@ export const getTopBrands = async (startDate, endDate) => {
     return rows;
 };
 
-//Report Page
 export const getFullReportData = async (startDate, endDate) => {
     try {
         const sql = `
@@ -318,89 +301,32 @@ export const getWeeklyReportMetrics = async (startDate, endDate, absoluteWeek = 
     const s = formatDate(startDate);
     const e = formatDate(endDate);
 
+    // --- DYNAMIC CAPACITIES FETCHED HERE ---
+    const { TOTAL, MANAGER_CAPS, BRAND_CAPS } = await getCapacitiesForDate(e);
+
     try {
         const [
-            // 0: Current Week Trips
-            currRes, 
-            // 1: Prev Week Brand Trips
-            prevBrandRes, 
-            // 2: Trend Trips
-            trendTripsRes, 
-            // 3: Brand Current
-            brandRes, 
-            // 4: Truck Deployment Insight
-            truckInsightRes, 
-            // 5: Managers Current
-            managerTripsRes,
-            // 6: Top Volume
-            topVolumeRes, 
-            // 7: Top Non-IT Profit
-            topNonItProfitRes, 
-            // 8: Top IT Profit
-            topItProfitRes,
-            // 9: FM Prev Trips
-            fmPrevRes, 
-            // 10: All Trucks Profit Raw (Gross)
-            allTrucksProfitRaw, 
-            // 11: Prev Week Financial Gross
-            financialPrevRes, 
-            // 12: FM Prev Trucks Active
-            fmPrevTrucksRes,
-            // 13: Brand Historical Trend
-            brandTrendRes,
-            
-            // --- NEW: ISOLATED MAINTENANCE QUERIES ---
-            // 14: Total Maintenance (Current Week)
-            maintTotalRes, 
-            // 15: Maintenance Trend (Weekly)
-            maintTrendRes, 
-            // 16: Maintenance by Manager (Current Week)
-            mgrMaintRes, 
-            // 17: Maintenance by Truck (Current Week)
-            truckMaintRes,
-            // 18: Total Maintenance (Previous Week for WoW comparison)
-            maintPrevTotalRes,
-            // 19: Maintenance by Manager (Previous Week for WoW comparison)
-            fmPrevMaintRes
-            
+            currRes, prevBrandRes, trendTripsRes, brandRes, 
+            truckInsightRes, managerTripsRes, topVolumeRes, 
+            topNonItProfitRes, topItProfitRes, fmPrevRes, 
+            allTrucksProfitRaw, financialPrevRes, fmPrevTrucksRes,
+            brandTrendRes, maintTotalRes, maintTrendRes, 
+            mgrMaintRes, truckMaintRes, maintPrevTotalRes, fmPrevMaintRes
         ] = await Promise.all([
-            // Current Week General Summary (Removed maintenance)
             pool.query(`SELECT COUNT(*) as total_trips, SUM(CASE WHEN trip_category = 'IT' THEN 1 ELSE 0 END) as it_trips, SUM(CASE WHEN trip_category != 'IT' OR trip_category IS NULL THEN 1 ELSE 0 END) as non_it_trips, COUNT(DISTINCT truck_number) as total_active_trucks, COUNT(DISTINCT CASE WHEN trip_category != 'IT' OR trip_category IS NULL THEN truck_number END) as active_trucks_non_it, SUM(profit) as gross_profit_val FROM trips WHERE trip_date BETWEEN ? AND ?`, [s, e]),
-            
-            // Previous Week Brand (Historical)
             pool.query(`SELECT brand, COUNT(*) as trips FROM trips WHERE trip_date BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND DATE_SUB(?, INTERVAL 7 DAY) GROUP BY brand`, [s, e]),
-            
-            // Trend Analysis (Gross Profit only)
             pool.query(`SELECT week_start_date, COUNT(CASE WHEN trip_category != 'IT' OR trip_category IS NULL THEN 1 END) as revenue_trips, COUNT(DISTINCT CASE WHEN trip_category != 'IT' OR trip_category IS NULL THEN truck_number END) as revenue_trucks, SUM(profit) as gross_profit FROM trips WHERE week_start_date <= (SELECT week_start_date FROM trips WHERE trip_date = ? LIMIT 1) GROUP BY week_start_date ORDER BY week_start_date DESC LIMIT 4`, [s]),
-            
-            // Current Brand Stats
             pool.query(`SELECT brand as name, COUNT(DISTINCT CASE WHEN trip_category != 'IT' OR trip_category IS NULL THEN truck_number END) as active_trucks, SUM(CASE WHEN trip_category != 'IT' OR trip_category IS NULL THEN 1 ELSE 0 END) as revenue_trips, COUNT(*) as total_trips FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY brand`, [s, e]),
-            
-            // Truck Deployment Logic
             pool.query(`SELECT COUNT(DISTINCT CASE WHEN did_revenue = 1 AND did_it = 0 THEN truck_number END) as onlyRevenue, COUNT(DISTINCT CASE WHEN did_revenue = 0 AND did_it = 1 THEN truck_number END) as onlyIT, COUNT(DISTINCT CASE WHEN did_revenue = 1 AND did_it = 1 THEN truck_number END) as doubleDuty FROM (SELECT truck_number, MAX(CASE WHEN trip_category != 'IT' OR trip_category IS NULL THEN 1 ELSE 0 END) as did_revenue, MAX(CASE WHEN trip_category = 'IT' THEN 1 ELSE 0 END) as did_it FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number) as deployment_stats`, [s, e]),
-            
-            // Fleet Manager Logic (Gross profit only)
             pool.query(`SELECT UPPER(TRIM(main.fleet_manager)) as name, SUM(CASE WHEN main.trip_category != 'IT' OR main.trip_category IS NULL THEN 1 ELSE 0 END) as trips, COUNT(DISTINCT main.truck_number) as active_trucks, COUNT(DISTINCT CASE WHEN main.trip_category != 'IT' OR main.trip_category IS NULL THEN main.truck_number END) as revenue_trucks, SUM(main.profit) as gross_profit, GROUP_CONCAT(DISTINCT main.brand SEPARATOR ' AND ') as manager_brands, COUNT(DISTINCT CASE WHEN target.is_met = 1 THEN main.truck_number END) as trucks_met_target FROM trips main LEFT JOIN (SELECT UPPER(TRIM(fleet_manager)) as fm_key, truck_number, 1 as is_met FROM trips WHERE (trip_category != 'IT' OR trip_category IS NULL) AND trip_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(fleet_manager)), truck_number HAVING COUNT(*) >= 3) AS target ON UPPER(TRIM(main.fleet_manager)) = target.fm_key AND main.truck_number = target.truck_number WHERE main.trip_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(main.fleet_manager)) ORDER BY gross_profit DESC`, [s, e, s, e]),
-            
-            // Supporting Data Queries
             pool.query(`SELECT truck_number as id, MAX(driver_name) as driver, MAX(brand) as brand, MAX(fleet_manager) as fm, COUNT(*) as trips, SUM(CASE WHEN trip_category = 'IT' THEN 1 ELSE 0 END) as it_trips, SUM(profit) as profit FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number ORDER BY trips DESC LIMIT 10`, [s, e]),
             pool.query(`SELECT truck_number as id, MAX(brand) as brand, MAX(fleet_manager) as fm, COUNT(*) as trips, SUM(CASE WHEN trip_category = 'IT' THEN 1 ELSE 0 END) as it_trips, SUM(profit) as profit FROM trips WHERE trip_date BETWEEN ? AND ? AND (trip_category != 'IT' OR trip_category IS NULL) GROUP BY truck_number ORDER BY profit DESC LIMIT 10`, [s, e]),
             pool.query(`SELECT truck_number as id, MAX(brand) as brand, MAX(fleet_manager) as fm, COUNT(*) as trips, SUM(CASE WHEN trip_category = 'IT' THEN 1 ELSE 0 END) as it_trips, SUM(profit) as profit FROM trips WHERE trip_date BETWEEN ? AND ? AND trip_category = 'IT' GROUP BY truck_number ORDER BY profit DESC LIMIT 10`, [s, e]),
-            
-            // Prev Week Manager Gross Profit
             pool.query(`SELECT UPPER(TRIM(fleet_manager)) as name, SUM(profit) as profit FROM trips WHERE trip_date BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND DATE_SUB(?, INTERVAL 7 DAY) GROUP BY UPPER(TRIM(fleet_manager))`, [s, e]),
-            
-            // All Trucks Profit Raw (Gross)
             pool.query(`SELECT truck_number as id, MAX(brand) as brand, MAX(fleet_manager) as fm, SUM(profit) as gross_profit, COUNT(*) as trips, SUM(CASE WHEN trip_category = 'IT' THEN 1 ELSE 0 END) as it_trips FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number`, [s, e]),
-            
-            // Financials Prev (Gross)
             pool.query(`SELECT SUM(profit) as gross FROM trips WHERE trip_date BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND DATE_SUB(?, INTERVAL 7 DAY)`, [s, e]),
             pool.query(`SELECT UPPER(TRIM(fleet_manager)) as name, COUNT(DISTINCT truck_number) as prev_active FROM trips WHERE trip_date BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND DATE_SUB(?, INTERVAL 7 DAY) GROUP BY UPPER(TRIM(fleet_manager))`, [s, e]),
-
-            // Brand Historical Trend
             pool.query(`SELECT brand, DATE_FORMAT(DATE_SUB(trip_date, INTERVAL (WEEKDAY(DATE_SUB(trip_date, INTERVAL 4 DAY))) DAY), '%Y-%m-%d') as friday_start, SUM(CASE WHEN UPPER(TRIM(trip_category)) != 'IT' AND trip_category IS NOT NULL THEN 1 ELSE 0 END) as revenue_trips, COUNT(DISTINCT CASE WHEN UPPER(TRIM(trip_category)) != 'IT' AND trip_category IS NOT NULL THEN truck_number END) as active_trucks FROM trips WHERE trip_date <= ? GROUP BY brand, friday_start ORDER BY friday_start ASC`, [e]),
-
-            // --- ISOLATED MAINTENANCE QUERIES ---
             pool.query(`SELECT COALESCE(SUM(amount), 0) as maint FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ?`, [s, e]),
             pool.query(`SELECT DATE_SUB(maintenance_date, INTERVAL (WEEKDAY(DATE_SUB(maintenance_date, INTERVAL 4 DAY))) DAY) as week_start_date, SUM(amount) as maint FROM maintenance_logs WHERE maintenance_date <= ? GROUP BY week_start_date`, [e]),
             pool.query(`SELECT UPPER(TRIM(t.fleet_manager)) as name, SUM(m.amount) as maint FROM maintenance_logs m JOIN (SELECT truck_number, MAX(fleet_manager) as fleet_manager FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number) t ON m.truck_number COLLATE utf8mb4_general_ci = t.truck_number COLLATE utf8mb4_general_ci WHERE m.maintenance_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(t.fleet_manager))`, [s, e, s, e]),
@@ -409,20 +335,17 @@ export const getWeeklyReportMetrics = async (startDate, endDate, absoluteWeek = 
             pool.query(`SELECT UPPER(TRIM(t.fleet_manager)) as name, SUM(m.amount) as maint FROM maintenance_logs m JOIN (SELECT truck_number, MAX(fleet_manager) as fleet_manager FROM trips WHERE trip_date BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND DATE_SUB(?, INTERVAL 7 DAY) GROUP BY truck_number) t ON m.truck_number COLLATE utf8mb4_general_ci = t.truck_number COLLATE utf8mb4_general_ci WHERE m.maintenance_date BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND DATE_SUB(?, INTERVAL 7 DAY) GROUP BY UPPER(TRIM(t.fleet_manager))`, [s, e, s, e])
         ]);
 
-        // --- DATA PROCESSING ---
         const curr = currRes[0][0];
         const currentWkNum = absoluteWeek ? parseInt(absoluteWeek) : 1;
         const calcPct = (c, p) => (p && p !== 0) ? Math.round(((c - p) / Math.abs(p)) * 100) : 0;
         const deployment = truckInsightRes[0][0] || { onlyRevenue: 0, onlyIT: 0, doubleDuty: 0 };
 
-        // Maintenance Map Variables
         const totalMaint = Number(maintTotalRes[0][0]?.maint || 0);
         const prevMaintTotal = Number(maintPrevTotalRes[0][0]?.maint || 0);
         const mgrMaintMap = mgrMaintRes[0].reduce((acc, r) => { acc[r.name] = Number(r.maint); return acc; }, {});
         const truckMaintMap = truckMaintRes[0].reduce((acc, r) => { acc[r.truck_number] = Number(r.maint); return acc; }, {});
         const fmPrevMaintMap = fmPrevMaintRes[0].reduce((acc, r) => { acc[r.name] = Number(r.maint); return acc; }, {});
 
-        // Combine Trend Trips + Maintenance
         const trends = trendTripsRes[0].map(t => {
             const tripWkStr = t.week_start_date ? t.week_start_date.toISOString().split('T')[0] : '';
             const maintMatch = maintTrendRes[0].find(m => {
@@ -440,7 +363,6 @@ export const getWeeklyReportMetrics = async (startDate, endDate, absoluteWeek = 
             efficiency: (t.revenue_trips / (t.revenue_trucks || 1)).toFixed(1) 
         }));
 
-        // Brand Historical Trend Alignment
         const brandRaw = brandTrendRes[0];
         const uniqueFridays = [...new Set(brandRaw.map(item => item.friday_start))].sort().slice(-4);
         const uniqueBrands = [...new Set(brandRaw.map(item => item.brand))].filter(b => b);
@@ -457,11 +379,9 @@ export const getWeeklyReportMetrics = async (startDate, endDate, absoluteWeek = 
             return { name: brandName, data: dataByWeek, changes };
         });
 
-        // Brand Performance Summary
-        const BRAND_CAPS = { HOWO: 30, IVECO: 23, MACK: 25, 'MAN TGA': 12 };
         const brandPerformance = brandRes[0].map(cb => {
             const normalizedBrandName = cb.name.toUpperCase();
-            const cap = BRAND_CAPS[normalizedBrandName] || 25;
+            const cap = BRAND_CAPS[normalizedBrandName] || 25; 
             const activeCommTrucks = cb.active_trucks || 0;
             const revenueTrips = cb.revenue_trips || 0; 
             
@@ -473,7 +393,6 @@ export const getWeeklyReportMetrics = async (startDate, endDate, absoluteWeek = 
             };
         });
 
-        // Combine Trucks with Maintenance (For both Top & Negative calculations)
         const allTrucksProcessed = allTrucksProfitRaw[0].map(t => {
             const maint = truckMaintMap[t.id] || 0;
             const net_profit = Number(t.gross_profit) - maint;
@@ -491,20 +410,16 @@ export const getWeeklyReportMetrics = async (startDate, endDate, absoluteWeek = 
                 maint_roi: t.gross_profit > 0 ? ((t.maintenance / t.gross_profit) * 100).toFixed(0) : '100+'
             }));
 
-        // Fleet Manager Mapping
-        const MANAGER_CAPS = { 'BENJAMIN': 35, 'MICHAEL': 29, 'FATAI': 16 };
         const totalPrevActive = (fmPrevTrucksRes[0] || []).reduce((sum, m) => sum + (m.prev_active || 0), 0);
 
         const managers = (managerTripsRes[0] || []).map(cm => {
             const normalizedKey = cm.name.toUpperCase();
             
-            // Get Previous Data
             const pmTrucks = (fmPrevTrucksRes[0] || []).find(p => p.name === normalizedKey);
             const prevGross = Number((fmPrevRes[0] || []).find(p => p.name === normalizedKey)?.profit || 0);
             const prevMaint = fmPrevMaintMap[normalizedKey] || 0;
             const prevNetProfit = prevGross - prevMaint;
 
-            // Get Current Data
             const capacity = MANAGER_CAPS[normalizedKey] || 30;
             const truckDiff = cm.active_trucks - (pmTrucks?.prev_active || 0);
             const maint = mgrMaintMap[normalizedKey] || 0;
@@ -525,7 +440,6 @@ export const getWeeklyReportMetrics = async (startDate, endDate, absoluteWeek = 
             };
         });
 
-        // WoW Financial Formatting
         const prevGross = Number(financialPrevRes[0][0]?.gross || 0);
         const prevNet = prevGross - prevMaintTotal;
         const currNet = (curr.gross_profit_val || 0) - totalMaint;
@@ -539,7 +453,7 @@ export const getWeeklyReportMetrics = async (startDate, endDate, absoluteWeek = 
             maintenance: totalMaint,
             netProfit: currNet,
             truckChange: curr.total_active_trucks - totalPrevActive,
-            utilization: Math.round(((curr.total_active_trucks || 0) / 90) * 100),
+            utilization: Math.round(((curr.total_active_trucks || 0) / TOTAL) * 100),
             avgTripPerTruck: (curr.non_it_trips / (curr.active_trucks_non_it || 1)).toFixed(1),
             trends,
             managers,
@@ -571,16 +485,14 @@ export const getMonthlyExecutiveReport = async (month, year) => {
         throw new Error(`Invalid date parameters: month=${month}, year=${year}`);
     }
 
-    const FLEET_TOTAL_CAPACITY = 90;
-    const MANAGER_CAPS = { 'BENJAMIN': 35, 'MICHAEL': 30, 'FATAI': 25 };
-    const BRAND_CAPS = { 'HOWO': 30, 'IVECO': 23, 'MACK': 25, 'MAN TGA': 12 };
-
     const startDate = `${y}-${String(m).padStart(2, '0')}-01`;
     const lastDay = new Date(y, m, 0).getDate();
     const endDate = `${y}-${String(m).padStart(2, '0')}-${lastDay} 23:59:59`;
     const lookbackDate = new Date(y, m - 4, 1).toISOString().split('T')[0];
 
-    // Previous Month Dates (For MoM Trends)
+    // --- DYNAMIC CAPACITIES FETCHED HERE ---
+    const { TOTAL, MANAGER_CAPS, BRAND_CAPS } = await getCapacitiesForDate(endDate);
+
     const prevM = m === 1 ? 12 : m - 1;
     const prevY = m === 1 ? y - 1 : y;
     const prevStartDate = `${prevY}-${String(prevM).padStart(2, '0')}-01`;
@@ -592,67 +504,28 @@ export const getMonthlyExecutiveReport = async (month, year) => {
 
     try {
         const [
-            // Trips Data
             currRes, prevRes, trendTripsRes, managerTripsRes, brandRes, 
             brandTrendRes, topVolumeRes, topProfitRawRes, prevManagerTripsRes,
-            
-            // --- ISOLATED MAINTENANCE QUERIES ---
-            maintTotalRes,         // Total Maintenance (Current Month)
-            maintPrevTotalRes,     // Total Maintenance (Previous Month)
-            maintMonthlyRes,       // Maintenance by Month (For Trends)
-            mgrMaintRes,           // Maintenance by Manager (Current Month)
-            prevMgrMaintRes,       // Maintenance by Manager (Previous Month)
-            truckMaintRes          // Maintenance by Truck (Current Month)
-
+            maintTotalRes, maintPrevTotalRes, maintMonthlyRes, mgrMaintRes, 
+            prevMgrMaintRes, truckMaintRes
         ] = await Promise.all([
-            // 0: Current Month Trips Summary (Gross Profit only)
             pool.query(`SELECT COUNT(*) as total_trips_raw, SUM(CASE WHEN ${isIT} THEN 1 ELSE 0 END) as it_trips, SUM(CASE WHEN ${isNonIT} THEN 1 ELSE 0 END) as non_it_trips, COUNT(DISTINCT CASE WHEN ${isNonIT} THEN truck_number END) as active_trucks_non_it, COUNT(DISTINCT CASE WHEN ${isIT} THEN truck_number END) as active_trucks_it_only, SUM(CASE WHEN ${isNonIT} THEN profit ELSE 0 END) as gross_profit_val FROM trips WHERE trip_date BETWEEN ? AND ?`, [startDate, endDate]),
-            
-            // 1: Prev Month Volume
             pool.query(`SELECT COUNT(*) as prev_trips FROM trips WHERE trip_date BETWEEN ? AND ? AND ${isNonIT}`, [prevStartDate, prevEndDate]),
-            
-            // 2: Monthly Trends (Gross Profit only, Strict Mode Group By)
             pool.query(`SELECT DATE_FORMAT(trip_date, '%b') as month_label, YEAR(trip_date) as y, MONTH(trip_date) as m, COUNT(DISTINCT CASE WHEN ${isNonIT} THEN truck_number END) as active_trucks, SUM(CASE WHEN ${isNonIT} THEN 1 ELSE 0 END) as trips, SUM(CASE WHEN ${isNonIT} THEN COALESCE(profit,0) ELSE 0 END) as gross_profit FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY y, m, month_label ORDER BY y ASC, m ASC`, [lookbackDate, endDate]),
-            
-            // 3: Managers (Current - Gross Profit only)
             pool.query(`SELECT UPPER(TRIM(main.fleet_manager)) as name, COUNT(DISTINCT main.truck_number) as active_trucks_total, COUNT(DISTINCT CASE WHEN ${isNonIT} THEN main.truck_number END) as active_trucks_non_it, SUM(CASE WHEN ${isNonIT} THEN 1 ELSE 0 END) as trips_non_it, SUM(COALESCE(main.profit, 0)) as gross_profit_total, COALESCE(MAX(target_data.met_target_count), 0) as trucks_met_target FROM trips main LEFT JOIN (SELECT manager_name, COUNT(*) as met_target_count FROM (SELECT UPPER(TRIM(fleet_manager)) as manager_name, truck_number FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(fleet_manager)), truck_number HAVING COUNT(*) >= 3) as inner_counts GROUP BY manager_name) as target_data ON UPPER(TRIM(main.fleet_manager)) = target_data.manager_name WHERE main.trip_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(main.fleet_manager))`, [startDate, endDate, startDate, endDate]),
-            
-            // 4: Brand Breakdown
             pool.query(`SELECT COALESCE(brand, 'Unknown') as name, COUNT(DISTINCT truck_number) as active_trucks_non_it, SUM(1) as trips_non_it FROM trips WHERE trip_date BETWEEN ? AND ? AND ${isNonIT} GROUP BY brand`, [startDate, endDate]),
-            
-            // 5: Brand Trends (MoM)
             pool.query(`SELECT COALESCE(brand, 'Unknown') as brand, DATE_FORMAT(trip_date, '%b') as month_label, COUNT(DISTINCT truck_number) as active_trucks, COUNT(*) as trips FROM trips WHERE trip_date BETWEEN ? AND ? AND ${isNonIT} GROUP BY brand, YEAR(trip_date), MONTH(trip_date), month_label ORDER BY brand ASC, YEAR(trip_date) ASC, MONTH(trip_date) ASC`, [lookbackDate, endDate]),
-            
-            // 6: Top Volume
             pool.query(`SELECT truck_number, MAX(brand) as brand, COUNT(*) as trips, MAX(driver_name) as driver, MAX(fleet_manager) as fm FROM trips WHERE trip_date BETWEEN ? AND ? AND ${isNonIT} GROUP BY truck_number ORDER BY trips DESC LIMIT 5`, [startDate, endDate]),
-            
-            // 7: Top Profit Raw (Gross Profit only)
             pool.query(`SELECT truck_number, MAX(fleet_manager) as fm, SUM(CASE WHEN ${isIT} THEN COALESCE(profit, 0) ELSE 0 END) as it_profit, SUM(CASE WHEN ${isNonIT} THEN COALESCE(profit, 0) ELSE 0 END) as non_it_profit, SUM(COALESCE(profit, 0)) as gross_total, COUNT(*) as trips FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number`, [startDate, endDate]),
-            
-            // 8: Managers Prev (Gross Profit only)
             pool.query(`SELECT UPPER(TRIM(main.fleet_manager)) as name, COUNT(DISTINCT main.truck_number) as active_trucks_total, COUNT(DISTINCT CASE WHEN ${isNonIT} THEN main.truck_number END) as active_trucks_non_it, SUM(CASE WHEN ${isNonIT} THEN 1 ELSE 0 END) as trips_non_it, SUM(COALESCE(main.profit, 0)) as gross_profit_total FROM trips main WHERE main.trip_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(main.fleet_manager))`, [prevStartDate, prevEndDate]),
-
-            // --- MAINTENANCE QUERIES ---
-            // 9: Total Maintenance (Current)
             pool.query(`SELECT COALESCE(SUM(amount), 0) as total_maint FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ?`, [startDate, endDate]),
-            
-            // 10: Total Maintenance (Prev)
             pool.query(`SELECT COALESCE(SUM(amount), 0) as total_maint FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ?`, [prevStartDate, prevEndDate]),
-            
-            // 11: Maintenance by Month (Trend)
             pool.query(`SELECT DATE_FORMAT(maintenance_date, '%b') as month_label, YEAR(maintenance_date) as y, MONTH(maintenance_date) as m, SUM(amount) as maint FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ? GROUP BY y, m, month_label`, [lookbackDate, endDate]),
-            
-            // 12: Mgr Maintenance (Current)
             pool.query(`SELECT UPPER(TRIM(t.fleet_manager)) as name, SUM(m.amount) as maint FROM maintenance_logs m JOIN (SELECT truck_number, MAX(fleet_manager) as fleet_manager FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number) t ON m.truck_number COLLATE utf8mb4_general_ci = t.truck_number COLLATE utf8mb4_general_ci WHERE m.maintenance_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(t.fleet_manager))`, [startDate, endDate, startDate, endDate]),
-            
-            // 13: Mgr Maintenance (Prev)
             pool.query(`SELECT UPPER(TRIM(t.fleet_manager)) as name, SUM(m.amount) as maint FROM maintenance_logs m JOIN (SELECT truck_number, MAX(fleet_manager) as fleet_manager FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number) t ON m.truck_number COLLATE utf8mb4_general_ci = t.truck_number COLLATE utf8mb4_general_ci WHERE m.maintenance_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(t.fleet_manager))`, [prevStartDate, prevEndDate, prevStartDate, prevEndDate]),
-            
-            // 14: Truck Maintenance (Current)
             pool.query(`SELECT truck_number, SUM(amount) as maint FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ? GROUP BY truck_number`, [startDate, endDate])
         ]);
 
-        // --- EXTRACT DATA ---
         const curr = currRes[0][0] || {};
         const prevVol = prevRes[0][0]?.prev_trips || 0;
         const trendTripsData = trendTripsRes[0];
@@ -663,7 +536,6 @@ export const getMonthlyExecutiveReport = async (month, year) => {
         const topProfitRaw = topProfitRawRes[0];
         const prevManagerTripsData = prevManagerTripsRes[0];
 
-        // Maint Data
         const totalMaint = Number(maintTotalRes[0][0]?.total_maint || 0);
         const prevTotalMaint = Number(maintPrevTotalRes[0][0]?.total_maint || 0);
         const maintMonthlyRaw = maintMonthlyRes[0];
@@ -673,7 +545,6 @@ export const getMonthlyExecutiveReport = async (month, year) => {
 
         const totalFleetTrips = managerTripsData.reduce((sum, m) => sum + (Number(m.trips_non_it) || 0), 0);
 
-        // --- MERGE TRENDS ---
         const trendData = trendTripsData.map(t => {
             const maintMatch = maintMonthlyRaw.find(m => m.y === t.y && m.m === t.m);
             return {
@@ -682,7 +553,6 @@ export const getMonthlyExecutiveReport = async (month, year) => {
             };
         });
 
-        // --- BRAND WOW PIVOT ---
         const brandGroups = brandTrendRaw.reduce((acc, current) => {
             if (!acc[current.brand]) acc[current.brand] = [];
             acc[current.brand].push(current);
@@ -703,8 +573,6 @@ export const getMonthlyExecutiveReport = async (month, year) => {
             };
         });
 
-        // --- MANAGERS MOM TREND LOGIC ---
-        // Map maintenance into the manager trips arrays
         const managerData = managerTripsData.map(mgr => ({
             ...mgr, net_profit_total: Number(mgr.gross_profit_total) - (mgrMaintMap[mgr.name] || 0)
         }));
@@ -753,7 +621,6 @@ export const getMonthlyExecutiveReport = async (month, year) => {
             };
         });
 
-        // --- MERGE TOP PROFIT TRUCKS WITH MAINTENANCE ---
         const topProfitData = topProfitRaw.map(t => {
             const maint = truckMaintMap[t.truck_number] || 0;
             return {
@@ -772,7 +639,7 @@ export const getMonthlyExecutiveReport = async (month, year) => {
                 trips_growth_pct: prevVol > 0 ? Math.round(((curr.non_it_trips - prevVol) / prevVol) * 100) : 0,
                 active_trucks: curr.active_trucks_non_it || 0,
                 it_only_trucks: Math.max(0, (curr.active_trucks_it_only || 0) - (curr.active_trucks_non_it || 0)),
-                utilization_pct: Math.round((curr.active_trucks_non_it / FLEET_TOTAL_CAPACITY) * 100),
+                utilization_pct: Math.round((curr.active_trucks_non_it / TOTAL) * 100),
                 avg_tt: curr.active_trucks_non_it ? (curr.non_it_trips / curr.active_trucks_non_it).toFixed(1) : "0.0",
                 financials: { gross: curr.gross_profit_val || 0, maintenance: totalMaint, net: (curr.gross_profit_val - totalMaint) }
             },
@@ -824,102 +691,34 @@ export const getCustomRangeReport = async (startDate, endDate) => {
         const isNonIT = "(LOWER(trip_category) != 'it' OR trip_category IS NULL)";
         const isIT = "(LOWER(trip_category) = 'it')";
 
-        // Fire all queries concurrently for maximum speed
+        // --- DYNAMIC CAPACITIES FETCHED HERE ---
+        const { TOTAL, MANAGER_CAPS, BRAND_CAPS } = await getCapacitiesForDate(end);
+
         const [
-            summaryRaw, maintRaw,
-            managersRaw, mgrMaintRaw,
-            brandsRaw,
-            topVolumeRaw,
-            trucksRaw, truckMaintRaw
+            summaryRaw, maintRaw, managersRaw, mgrMaintRaw,
+            brandsRaw, topVolumeRaw, trucksRaw, truckMaintRaw
         ] = await Promise.all([
-            // 1. Overall Summary (Gross Profit only)
-            pool.query(`
-                SELECT 
-                    COUNT(id) as total_trips,
-                    COUNT(DISTINCT truck_number) as active_trucks, 
-                    SUM(trip_rate) as total_gross,
-                    SUM(profit) as total_profit_trips
-                FROM trips
-                WHERE trip_date BETWEEN ? AND ?
-            `, [start, end]),
-            
-            // Maintenance Total
+            pool.query(`SELECT COUNT(id) as total_trips, COUNT(DISTINCT truck_number) as active_trucks, SUM(trip_rate) as total_gross, SUM(profit) as total_profit_trips FROM trips WHERE trip_date BETWEEN ? AND ?`, [start, end]),
             pool.query(`SELECT COALESCE(SUM(amount), 0) as total_maint FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ?`, [start, end]),
-
-            // 2. Managers (Gross Profit only)
-            pool.query(`
-                SELECT 
-                    fleet_manager as name,
-                    COUNT(DISTINCT truck_number) as active_trucks,
-                    COUNT(id) as total_trips,
-                    SUM(profit) as gross_profit
-                FROM trips
-                WHERE trip_date BETWEEN ? AND ?
-                GROUP BY fleet_manager
-            `, [start, end]),
-            
-            // Managers Maintenance
-            pool.query(`
-                SELECT UPPER(TRIM(t.fleet_manager)) as name, SUM(m.amount) as maint 
-                FROM maintenance_logs m 
-                JOIN (SELECT truck_number, MAX(fleet_manager) as fleet_manager FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number) t ON m.truck_number COLLATE utf8mb4_general_ci = t.truck_number COLLATE utf8mb4_general_ci 
-                WHERE m.maintenance_date BETWEEN ? AND ? 
-                GROUP BY UPPER(TRIM(t.fleet_manager))
-            `, [start, end, start, end]),
-
-            // 3. Brands
-            pool.query(`
-                SELECT 
-                    brand as name,
-                    COUNT(DISTINCT truck_number) as active_trucks,
-                    COUNT(id) as total_trips
-                FROM trips
-                WHERE trip_date BETWEEN ? AND ?
-                GROUP BY brand
-                ORDER BY total_trips DESC
-            `, [start, end]),
-
-            // 4. Top Volume Trucks
-            pool.query(`
-                SELECT 
-                    truck_number, MAX(brand) as brand, COUNT(id) as trips,
-                    MAX(driver_name) as driver, MAX(fleet_manager) as fm
-                FROM trips
-                WHERE trip_date BETWEEN ? AND ?
-                GROUP BY truck_number
-                ORDER BY trips DESC
-                LIMIT 5
-            `, [start, end]),
-
-            // 5. Top Profit Trucks (Gross Profit only)
-            pool.query(`
-                SELECT 
-                    truck_number, MAX(fleet_manager) as fm, COUNT(id) as trips,
-                    SUM(CASE WHEN ${isIT} THEN profit ELSE 0 END) as it_profit,
-                    SUM(CASE WHEN ${isNonIT} THEN profit ELSE 0 END) as non_it_profit,
-                    SUM(profit) as gross_profit
-                FROM trips
-                WHERE trip_date BETWEEN ? AND ?
-                GROUP BY truck_number
-            `, [start, end]),
-            
-            // Truck Maintenance
+            pool.query(`SELECT fleet_manager as name, COUNT(DISTINCT truck_number) as active_trucks, COUNT(id) as total_trips, SUM(profit) as gross_profit FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY fleet_manager`, [start, end]),
+            pool.query(`SELECT UPPER(TRIM(t.fleet_manager)) as name, SUM(m.amount) as maint FROM maintenance_logs m JOIN (SELECT truck_number, MAX(fleet_manager) as fleet_manager FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number) t ON m.truck_number COLLATE utf8mb4_general_ci = t.truck_number COLLATE utf8mb4_general_ci WHERE m.maintenance_date BETWEEN ? AND ? GROUP BY UPPER(TRIM(t.fleet_manager))`, [start, end, start, end]),
+            pool.query(`SELECT brand as name, COUNT(DISTINCT truck_number) as active_trucks, COUNT(id) as total_trips FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY brand ORDER BY total_trips DESC`, [start, end]),
+            pool.query(`SELECT truck_number, MAX(brand) as brand, COUNT(id) as trips, MAX(driver_name) as driver, MAX(fleet_manager) as fm FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number ORDER BY trips DESC LIMIT 5`, [start, end]),
+            pool.query(`SELECT truck_number, MAX(fleet_manager) as fm, COUNT(id) as trips, SUM(CASE WHEN ${isIT} THEN profit ELSE 0 END) as it_profit, SUM(CASE WHEN ${isNonIT} THEN profit ELSE 0 END) as non_it_profit, SUM(profit) as gross_profit FROM trips WHERE trip_date BETWEEN ? AND ? GROUP BY truck_number`, [start, end]),
             pool.query(`SELECT truck_number, SUM(amount) as maint FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ? GROUP BY truck_number`, [start, end])
         ]);
 
-        // --- 1. PROCESS SUMMARY ---
         const summaryData = summaryRaw[0][0] || {};
         const totalTrips = Number(summaryData.total_trips || 0);
         const activeTrucks = Number(summaryData.active_trucks || 0);
         const totalGross = Number(summaryData.total_profit_trips || 0);
         const totalMaint = Number(maintRaw[0][0]?.total_maint || 0);
-        const TOTAL_FLEET_SIZE = 90;
 
         const summary = {
             total_inhouse_trips: totalTrips,
             active_trucks: activeTrucks,
-            total_fleet: TOTAL_FLEET_SIZE,
-            utilization_pct: Math.round((activeTrucks / TOTAL_FLEET_SIZE) * 100) || 0,
+            total_fleet: TOTAL,
+            utilization_pct: Math.round((activeTrucks / TOTAL) * 100) || 0,
             avg_tt: activeTrucks > 0 ? (totalTrips / activeTrucks).toFixed(1) : "0.0",
             financials: {
                 gross: totalGross,
@@ -928,13 +727,11 @@ export const getCustomRangeReport = async (startDate, endDate) => {
             }
         };
 
-        // --- 2. PROCESS MANAGERS ---
         const mgrMaintMap = mgrMaintRaw[0].reduce((acc, r) => { acc[r.name] = Number(r.maint); return acc; }, {});
-        const MANAGER_CAPACITY = { 'MICHAEL': 30, 'BENJAMIN': 35, 'FATAI': 25 };
         
         const managers = managersRaw[0].map(m => {
             const managerName = m.name ? m.name.toUpperCase() : 'UNASSIGNED';
-            const cap = MANAGER_CAPACITY[managerName] || 1;
+            const cap = MANAGER_CAPS[managerName] || 1;
             const mTrips = Number(m.total_trips || 0);
             const mActive = Number(m.active_trucks || 0);
             
@@ -942,8 +739,7 @@ export const getCustomRangeReport = async (startDate, endDate) => {
             const netProfit = Number(m.gross_profit || 0) - maint;
 
             return {
-                name: managerName,
-                capacity: cap,
+                name: managerName, capacity: cap,
                 active_trucks: mActive,
                 utilization_pct: Math.round((mActive / cap) * 100),
                 total_trips: mTrips,
@@ -954,17 +750,13 @@ export const getCustomRangeReport = async (startDate, endDate) => {
             };
         }).sort((a, b) => b.profit - a.profit);
 
-        // --- 3. PROCESS BRANDS ---
-        const BRAND_CAPACITY = { 'HOWO': 30, 'IVECO': 23, 'MACK': 25, 'MAN TGA': 12 };
-        
         const brands = brandsRaw[0].map(b => {
             const brandName = b.name ? b.name.toUpperCase() : 'UNKNOWN';
-            const cap = BRAND_CAPACITY[brandName] || 1;
+            const cap = BRAND_CAPS[brandName] || 1;
             const bTrips = Number(b.total_trips || 0);
             const bActive = Number(b.active_trucks || 0);
             return {
-                name: brandName,
-                capacity: cap,
+                name: brandName, capacity: cap,
                 active_trucks: bActive,
                 utilization_pct: Math.round((bActive / cap) * 100),
                 total_trips: bTrips,
@@ -973,22 +765,16 @@ export const getCustomRangeReport = async (startDate, endDate) => {
             };
         });
 
-        // --- 4. PROCESS TOP VOLUME ---
         const topVolume = topVolumeRaw[0];
 
-        // --- 5. PROCESS TOP PROFIT (Merged with Maintenance) ---
         const truckMaintMap = truckMaintRaw[0].reduce((acc, r) => { acc[r.truck_number] = Number(r.maint); return acc; }, {});
         
         const topProfit = trucksRaw[0].map(t => {
             const maint = truckMaintMap[t.truck_number] || 0;
             return {
-                truck_number: t.truck_number,
-                fm: t.fm,
-                trips: t.trips,
-                it_profit: Number(t.it_profit),
-                non_it_profit: Number(t.non_it_profit),
-                maintenance: maint,
-                net_profit: Number(t.gross_profit) - maint
+                truck_number: t.truck_number, fm: t.fm, trips: t.trips,
+                it_profit: Number(t.it_profit), non_it_profit: Number(t.non_it_profit),
+                maintenance: maint, net_profit: Number(t.gross_profit) - maint
             };
         }).sort((a, b) => b.net_profit - a.net_profit).slice(0, 10);
 
@@ -1009,25 +795,12 @@ export const getMaintenanceDashboardData = async (startDate, endDate) => {
             kpiRaw, mostExpensiveRaw, trendRaw, brandRaw, 
             categoryRaw, topOffendersRaw, ledgerRaw
         ] = await Promise.all([
-            // 1. Overall KPIs
             pool.query(`SELECT COALESCE(SUM(amount), 0) as total_spend, COUNT(record_id) as total_incidents FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ?`, [start, end]),
-
-            // 2. Most Expensive
             pool.query(`SELECT truck_number, SUM(amount) as truck_spend FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ? AND UPPER(TRIM(truck_number)) != 'NON-TRUCK' GROUP BY truck_number ORDER BY truck_spend DESC LIMIT 1`, [start, end]),
-
-            // 3. Trends
             pool.query(`SELECT DATE_FORMAT(maintenance_date, '%Y-%m-%d') as date, SUM(amount) as daily_spend FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ? GROUP BY date ORDER BY date ASC`, [start, end]),
-
-            // 4. Brands
             pool.query(`SELECT COALESCE(brand, 'UNKNOWN') as brand, SUM(amount) as brand_spend FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ? AND UPPER(TRIM(truck_number)) != 'NON-TRUCK' GROUP BY brand ORDER BY brand_spend DESC`, [start, end]),
-
-            // 5. Category
             pool.query(`SELECT CASE WHEN UPPER(TRIM(truck_number)) = 'NON-TRUCK' THEN 'General/Yard (Non-Truck)' ELSE 'Direct Truck Repairs' END as category, SUM(amount) as category_spend FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ? GROUP BY category`, [start, end]),
-
-            // 6. Top Offenders
             pool.query(`SELECT truck_number, COALESCE(MAX(brand), 'UNKNOWN') as brand, COUNT(record_id) as visit_count, SUM(amount) as total_spend FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ? AND UPPER(TRIM(truck_number)) != 'NON-TRUCK' GROUP BY truck_number ORDER BY total_spend DESC LIMIT 10`, [start, end]),
-
-            // 7. Ledger
             pool.query(`SELECT DATE_FORMAT(maintenance_date, '%Y-%m-%d') as date, item_description, amount, UPPER(TRIM(truck_number)) as truck_number, fleet_name, COALESCE(brand, 'UNKNOWN') as brand FROM maintenance_logs WHERE maintenance_date BETWEEN ? AND ? ORDER BY maintenance_date DESC, amount DESC`, [start, end])
         ]);
 
@@ -1058,4 +831,3 @@ export const fetchAllTrips = async () => {
     const [rows] = await pool.query('SELECT * FROM trips ORDER BY trip_date DESC');
     return rows;
 };
-

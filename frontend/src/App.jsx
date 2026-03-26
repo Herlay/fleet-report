@@ -16,6 +16,7 @@ import MonthlyReportPage from './pages/MonthlyReportPage';
 import Trips from './pages/Trips';
 import CustomReportPage from './pages/CustomReportPage';
 import MaintenancePage from './pages/MaintenancePage';
+import CapacityManager from './pages/CapacityManager';
 
 function App() {
   const { isAuthenticated, isLoading, error } = useAuth0();
@@ -57,6 +58,7 @@ function App() {
         <Route path="/reports" element={<ReportPage />} />
         <Route path="/monthly_reports" element={<MonthlyReportPage />} />
         <Route path="/custom_reports" element={<CustomReportPage />} />
+        <Route path="/capacity_manager" element={<CapacityManager />} />
 
         {/* Catch-all: Send any weird URLs back to Dashboard */}
         <Route path="*" element={<Navigate to="/" />} />

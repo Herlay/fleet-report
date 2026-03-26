@@ -8,7 +8,9 @@ import {
  getAllTrips,
  getMonthlyReportController,
  getCustomReportController,
- getMaintenanceReportController
+ getMaintenanceReportController,
+ getCurrentCapacities,
+ updateFleetCapacity
 } from '../controllers/analytics.controller.js';
 
 const router = express.Router();
@@ -22,5 +24,7 @@ router.get('/monthly-report', getMonthlyReportController);
 router.get('/trips-all', getAllTrips);
 router.get('/custom-report', getCustomReportController);
 router.get('/maintenance/report', getMaintenanceReportController);
+router.get('/capacity/current', getCurrentCapacities);
+router.post('/capacity/update', updateFleetCapacity);
 
 export default router;

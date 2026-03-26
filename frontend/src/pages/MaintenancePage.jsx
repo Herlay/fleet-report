@@ -420,9 +420,15 @@ const MaintenancePage = () => {
           {/* Detailed Maintenance Log with Local Filters */}
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-[500px] sm:h-[600px] relative">
               <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-4 sm:mb-6">
-                  <h3 className="text-xs sm:text-sm font-bold text-slate-700 uppercase tracking-widest flex items-center whitespace-nowrap">
-                      <FileText size={16} className="mr-2 text-slate-400" /> All Maintenance Cost
-                  </h3>
+                 {/* Title and Record Count Wrapper */}
+<div className="flex flex-col items-start gap-1.5">
+    <h3 className="text-xs sm:text-sm font-bold text-slate-700 uppercase tracking-widest flex items-center whitespace-nowrap">
+        <FileText size={16} className="mr-2 text-slate-400" /> All Maintenance Cost
+    </h3>
+    <span className="bg-slate-100 border border-slate-200 text-red-600 py-0.5 px-2.5 rounded-full text-[10px] normal-case tracking-normal font-medium">
+        {filteredLedger?.length || 0} {filteredLedger?.length === 1 ? 'Record' : 'Records'}
+    </span>
+</div>
                   
                   {/* Local Filters Row */}
                   <div className="flex flex-wrap w-full xl:w-auto items-center gap-2 sm:gap-3">

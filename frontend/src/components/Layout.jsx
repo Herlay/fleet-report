@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth0 } from '@auth0/auth0-react';
 import { 
   LayoutDashboard, FileText, Upload, Truck, Menu, X, 
-  Calendar, CalendarDays, Wrench, User, UserCog, LogOut 
+  Calendar, CalendarDays, Wrench, User, UserCog, LogOut, Database
 } from 'lucide-react';
 
 const SidebarItem = ({ icon: Icon, label, to, onClick }) => (
@@ -43,7 +43,8 @@ const Layout = ({ children }) => {
     { path: '/monthly_reports', label: 'Monthly Reports', icon: Calendar },
     { path: '/custom_reports', label: 'Custom Reports', icon: CalendarDays },
     { path: '/trips', label: 'All Trips', icon: Truck },
-    
+    { path: '/capacity_manager', label: 'Fleet Settings', icon: Database },
+ 
     // SECRET INJECTION: Only add the Admin Panel if the user is authorized!
     ...(user?.email === 'solomon.d@vpc.com.ng' 
       ? [{ path: '/admin', label: 'Admin Page', icon: UserCog }] 
