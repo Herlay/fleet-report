@@ -12,16 +12,22 @@ const AdminPanel = () => {
   const [message, setMessage] = useState(null);
 
   const API_BASE_URL = window.location.hostname === 'localhost' 
-    ? 'http://localhost:5173' 
+    ? 'http://localhost:5000' 
     : 'https://fleet-report.onrender.com';
 
-  const fetchAllUsers = async () => {
+const fetchAllUsers = async () => {
     setLoading(true);
     try {
       const response = await axios.get(`${API_BASE_URL}/api/admin/pending-users`);
-      const userData = response.data.users;
-      setUsers(Array.isArray(userData) ? userData : (userData?.users || []));
+      
+      // ARCHITECT FIX: Safely check if the backend sent an array directly, or an object containing a 'users' array.
+      const actualUsers = Array.isArray(response.data) 
+        ? response.data 
+        : (response.data?.users || []);
+        
+      setUsers(actualUsers);
     } catch (error) {
+      console.error("API Error:", error); // Added this so you can see actual errors in your console
       setMessage({ type: 'error', text: 'Failed to load user directory.' });
     } finally {
       setLoading(false);
@@ -115,7 +121,7 @@ const AdminPanel = () => {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-24">
               <Loader2 className="animate-spin text-blue-600 mb-4" size={40} />
-              <p className="text-slate-400 font-bold uppercase tracking-tighter">Syncing Directory...</p>
+              <p className="text-slate-400 font-bold uppercase tracking-tighter">Loading Users Account...</p>
             </div>
           ) : users.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-center px-6">

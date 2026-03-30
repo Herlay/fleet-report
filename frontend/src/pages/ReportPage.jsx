@@ -151,6 +151,8 @@ const ReportPage = () => {
 
     const { metrics, text: aiText } = reportData;
 
+    const dynamicTotalCapacity = metrics?.brandPerformance?.reduce((sum, b) => sum + Number(b.capacity || 0), 0) || 90;
+
     const trendData = {
       labels: metrics?.trends?.map(t => t.week),
       datasets: [
@@ -231,7 +233,7 @@ const ReportPage = () => {
           </p>
         </section>
 
-        {/* OVERALL FLEET PERFORMANCE */}
+       {/* OVERALL FLEET PERFORMANCE */}
         <section style={{ marginBottom: '35px' }}>
           <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '12px', textTransform: 'uppercase' }}>
             🚚 Overall Fleet Performance - Week {meta.absoluteWeek}
@@ -274,7 +276,10 @@ const ReportPage = () => {
                 <tr>
                   <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontWeight: 'bolder' }}>Overall Fleet Utilization</td>
                   <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bolder' }}>{metrics?.utilization}%</td>
-                  <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontSize: '10px', color: '#010305', fontWeight: 'bolder' }}>Percentage of 90-truck capacity active this week</td>
+                  {/* === UPDATED LINE WITH DYNAMIC CAPACITY === */}
+                  <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontSize: '10px', color: '#010305', fontWeight: 'bolder' }}>
+                    Percentage of {dynamicTotalCapacity}-truck capacity active this week
+                  </td>
                 </tr>
                 <tr>
                   <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontWeight: 'bolder' }}>Average Trip per Truck (T/T)</td>
@@ -295,7 +300,6 @@ const ReportPage = () => {
     {/* Gross Profit */}
     <div style={{ padding: '12px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
       <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Gross Profit</div>
-      {/* Updated to fmtM */}
       <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>{fmtM(metrics?.grossProfit)}</div>
       <div style={{ fontSize: '10px', marginTop: '4px', color: metrics?.financialWoW?.gross?.pct >= 0 ? '#16a34a' : '#dc2626' }}>
         {metrics?.financialWoW?.gross?.pct >= 0 ? '↑' : '↓'}{Math.abs(metrics?.financialWoW?.gross?.pct)}%
@@ -306,7 +310,6 @@ const ReportPage = () => {
     {/* Maintenance */}
     <div style={{ padding: '12px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
       <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Maintenance</div>
-      {/* Updated to fmtM */}
       <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#dc2626' }}>- {fmtM(metrics?.maintenance)}</div>
       <div style={{ fontSize: '10px', marginTop: '4px', color: metrics?.financialWoW?.maintenance?.pct <= 0 ? '#16a34a' : '#dc2626' }}>
         {metrics?.financialWoW?.maintenance?.pct >= 0 ? '↑' : '↓'}{Math.abs(metrics?.financialWoW?.maintenance?.pct)}%
@@ -317,7 +320,6 @@ const ReportPage = () => {
     {/* Net Profit */}
     <div style={{ backgroundColor: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
       <div style={{ fontSize: '10px', color: '#16a34a', fontWeight: 'bold', textTransform: 'uppercase' }}>Net Profit</div>
-      {/* Updated to fmtM */}
       <div style={{ fontSize: '22px', fontWeight: '900', color: '#16a34a' }}>{fmtM(metrics?.netProfit)}</div>
       <div style={{ fontSize: '11px', marginTop: '4px', color: metrics?.financialWoW?.net?.pct >= 0 ? '#16a34a' : '#dc2626', fontWeight: 'bold' }}>
         {metrics?.financialWoW?.net?.pct >= 0 ? '↑' : '↓'}{Math.abs(metrics?.financialWoW?.net?.pct)}%
@@ -568,10 +570,10 @@ const ReportPage = () => {
           </tr>
         ))}
         {(() => {
-          // Dynamic calculation for the TOTAL row
+         // Dynamic calculation for the TOTAL row
           const tableActiveTotal = metrics?.brandPerformance?.reduce((sum, b) => sum + Number(b.active_trucks || 0), 0) || 0;
           const tableTripsTotal = metrics?.brandPerformance?.reduce((sum, b) => sum + Number(b.trips || 0), 0) || 0;
-          
+
           // Sum up the dynamic capacity of all brands to get the true total fleet capacity
           const dynamicTotalCapacity = metrics?.brandPerformance?.reduce((sum, b) => sum + Number(b.capacity || 0), 0) || 1; 
 

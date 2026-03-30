@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { 
   Wrench, AlertTriangle, TrendingUp, Activity, 
-  Search, FileText, CheckCircle, Loader2, Info, Filter, Truck, AlertCircle
+  Search, FileText, CheckCircle, Loader2, Info, Filter, Truck
 } from 'lucide-react';
 import KpiCard from '../components/KpiCard';
 import ChartCard from '../components/ChartCard';
@@ -61,14 +61,9 @@ const MaintenancePage = () => {
     if (number === null || number === undefined || isNaN(number)) return "₦0";
     
     const num = Number(number);
-    // Billions
     if (num >= 1e9) return `₦${(num / 1e9).toFixed(1).replace(/\.0$/, '')}B`;
-    // Millions
     if (num >= 1e6) return `₦${(num / 1e6).toFixed(1).replace(/\.0$/, '')}M`;
-    // Thousands
     if (num >= 1e3) return `₦${(num / 1e3).toFixed(1).replace(/\.0$/, '')}K`;
-    
-    // Hundreds or less
     return `₦${num.toLocaleString('en-NG')}`;
   };
 
@@ -143,6 +138,50 @@ const MaintenancePage = () => {
       });
   }, [processedLedger, searchTerm, filterTruck, filterBrand, filterFleet]);
 
+// --- ARCHITECT FIX: DYNAMIC CATEGORY BAR CHART DATA (MULTI-COLOR) ---
+  const categoryHorizontalBarData = useMemo(() => {
+    const categoryTotals = filteredLedger?.reduce((acc, curr) => {
+      const cat = curr.category || 'Uncategorized'; 
+      acc[cat] = (acc[cat] || 0) + Number(curr.amount || 0);
+      return acc;
+    }, {}) || {};
+
+    // Sort categories from highest spend to lowest
+    const sortedCategories = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
+
+    // A professional, modern SaaS color palette (Tailwind-inspired)
+    // The highest spend gets the first color (Red), second gets Orange, etc.
+    const barColors = [
+      '#ef4444', // Red-500 (Most expensive)
+      '#f97316', // Orange-500
+      '#f59e0b', // Amber-500
+      '#eab308', // Yellow-500
+      '#84cc16', // Lime-500
+      '#10b981', // Emerald-500
+      '#06b6d4', // Cyan-500
+      '#3b82f6', // Blue-500
+      '#6366f1', // Indigo-500
+      '#8b5cf6', // Violet-500
+      '#d946ef', // Fuchsia-500
+      '#64748b'  // Slate-500 (Fallback for extra categories)
+    ];
+
+    return {
+      labels: sortedCategories.map(item => item[0]), 
+      datasets: [
+        {
+          label: 'Maintenance Spend',
+          data: sortedCategories.map(item => item[1]), 
+          backgroundColor: barColors, // <--- WE PASS THE ARRAY OF COLORS HERE
+          borderRadius: 4,
+          borderWidth: 1,
+          borderColor: 'transparent',
+          hoverBorderColor: '#000000', // Adds a nice black border when you hover over a bar
+        }
+      ]
+    };
+  }, [filteredLedger]);
+
   // --- LOADING / EMPTY STATES ---
   if (!data && loading) return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4 px-4">
@@ -153,7 +192,6 @@ const MaintenancePage = () => {
 
   if (!data) return (
     <div className="space-y-6 fade-in-up relative px-2 sm:px-0">
-      {/* FIXED FILTER WRAPPER */}
       <div className="sticky top-0 z-[20] bg-slate-50/90 backdrop-blur-md -mt-4 -mx-4 p-4 border-b border-slate-200 shadow-sm no-print">
         <FilterBar onFilterChange={handleFilterChange} />
       </div>
@@ -202,20 +240,10 @@ const MaintenancePage = () => {
     }]
   };
 
-  const categoryDoughnutData = {
-      labels: Object.keys(categoryData).length > 0 ? Object.keys(categoryData) : ['No Data'],
-      datasets: [{
-          data: Object.keys(categoryData).length > 0 ? Object.values(categoryData) : [1],
-          backgroundColor: ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b', '#14b8a6', '#f97316'],
-          hoverOffset: 10, borderWidth: 2, borderColor: '#ffffff',
-      }]
-  };
-
   // Extract Top 10 Trucks by Visit Frequency for the new Table
   const topFreqTrucks = [...(data.topOffenders || [])].sort((a,b) => b.visits - a.visits).slice(0, 10);
 
   return (
-    // Lowered absolute relative z-index to 10 for the whole dashboard container
     <div className="space-y-6 pb-10 relative z-10 px-2 sm:px-0 max-w-full overflow-hidden">
       <style>{`
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -225,7 +253,7 @@ const MaintenancePage = () => {
         .sticky-filter-container {
           position: sticky;
           top: 0;
-          z-index: 20; /* Changed from 100 to 20 to slide under sidebar */
+          z-index: 20; 
           margin-top: -1.5rem; 
           margin-left: -1rem;
           margin-right: -1rem;
@@ -296,11 +324,11 @@ const MaintenancePage = () => {
 
         {/* Brand Pie Chart */}
         <div className="lg:col-span-1 relative fade-in-up delay-200 transition-all duration-300 hover:shadow-md rounded-2xl w-full">
-          <div className="absolute top-2 right-40 z-10">
+          <div className="absolute top-2 right-20 z-10">
           <TooltipHeader tooltipText="Maintenance cost distribution by truck brand." />
           </div>
           <ChartCard 
-            title="COST BY BRAND" 
+            title="COST BY FLEET MANAGERS" 
             type="doughnut" 
             data={brandPieData} 
             options={{ 
@@ -363,21 +391,33 @@ const MaintenancePage = () => {
           </div>
         </div>
 
-        {/* Category Analysis */}
+      {/* Category Analysis (Horizontal Bar) */}
         <div className="lg:col-span-3 relative fade-in-up delay-300 transition-all duration-300 hover:shadow-md rounded-2xl w-full">
           <div className="absolute top-2 right-40 z-10">
-          <TooltipHeader tooltipText="Automatically categorizes repair items to show where the budget is going." />
-       </div> 
+            <TooltipHeader tooltipText="Automatically categorizes repair items to show where the budget is going." />
+          </div> 
           <ChartCard 
             title="MAINTENANCE CATEGORY ANALYSIS" 
-            type="doughnut" 
-            data={categoryDoughnutData} 
+            type="bar" 
+            data={categoryHorizontalBarData} 
             options={{ 
               maintainAspectRatio: false, 
+              indexAxis: 'y', 
               plugins: { 
-                legend: { position: 'right' }, 
+                legend: { display: false }, 
                 tooltip: { callbacks: { label: (ctx) => ` Spend: ${formatCompactNumber(ctx.raw)}` } } 
-              } 
+              },
+              scales: {
+                x: { 
+                  beginAtZero: true,
+                  grid: { color: '#f1f5f9' },
+                  ticks: { callback: (value) => formatCompactNumber(value) } 
+                },
+                y: {
+                  grid: { display: false }, 
+                  ticks: { font: { weight: '600' }, color: '#475569' } 
+                }
+              }
             }} 
           />
         </div>
@@ -421,14 +461,14 @@ const MaintenancePage = () => {
           <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-[500px] sm:h-[600px] relative">
               <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-4 sm:mb-6">
                  {/* Title and Record Count Wrapper */}
-<div className="flex flex-col items-start gap-1.5">
-    <h3 className="text-xs sm:text-sm font-bold text-slate-700 uppercase tracking-widest flex items-center whitespace-nowrap">
-        <FileText size={16} className="mr-2 text-slate-400" /> All Maintenance Cost
-    </h3>
-    <span className="bg-slate-100 border border-slate-200 text-red-600 py-0.5 px-2.5 rounded-full text-[10px] normal-case tracking-normal font-medium">
-        {filteredLedger?.length || 0} {filteredLedger?.length === 1 ? 'Record' : 'Records'}
-    </span>
-</div>
+                <div className="flex flex-col items-start gap-1.5">
+                    <h3 className="text-xs sm:text-sm font-bold text-slate-700 uppercase tracking-widest flex items-center whitespace-nowrap">
+                        <FileText size={16} className="mr-2 text-slate-400" /> All Maintenance Cost
+                    </h3>
+                    <span className="bg-slate-100 border border-slate-200 text-red-600 py-0.5 px-2.5 rounded-full text-[10px] normal-case tracking-normal font-medium">
+                        {filteredLedger?.length || 0} {filteredLedger?.length === 1 ? 'Record' : 'Records'}
+                    </span>
+                </div>
                   
                   {/* Local Filters Row */}
                   <div className="flex flex-wrap w-full xl:w-auto items-center gap-2 sm:gap-3">
