@@ -1,5 +1,5 @@
 import express from 'express';
-import { getPendingUsers, approveUser, rejectUser } from '../controllers/admin.controller.js';
+import { getPendingUsers, approveUser, rejectUser, inviteUser } from '../controllers/admin.controller.js';
 
 const router = express.Router();
 
@@ -11,5 +11,8 @@ router.post('/approve', approveUser);
 
 // POST: Reject and delete an unauthorized user from Auth0
 router.post('/reject', rejectUser);
+
+//invite user
+router.post('/invite', inviteUser); 
 
 export default router;

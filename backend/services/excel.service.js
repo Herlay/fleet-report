@@ -43,9 +43,16 @@ export const processExcelFile = async (buffer) => {
             const brand = getSafeValue(row.getCell(27));
 
             if (parsedDate && truckNumber && brand) {
+                // ARCHITECT FIX 1: Deterministic Trip ID. 
+                // We combine Truck + Date + SN. If the row shifts next week, 
+                // this ID remains EXACTLY the same, triggering the UPDATE instead of duplicating!
+                const rawTripId = getSafeValue(row.getCell(3));
+                const deterministicTripId = `TRP-${truckNumber}-${parsedDate}-${sn}`.replace(/[^a-zA-Z0-9_-]/g, '');
+                const finalTripId = rawTripId || deterministicTripId;
+
                 tripsRecords.push([
                     sn, 
-                    getSafeValue(row.getCell(3)) || `GEN-${sn}-${i}`, 
+                    finalTripId, // Replaced brittle row-based ID with stable data-based ID
                     getSafeValue(row.getCell(4)), 
                     getSafeValue(row.getCell(5)) || 'UNKNOWN', 
                     parsedDate,
@@ -122,11 +129,11 @@ export const processExcelFile = async (buffer) => {
             
             const parsedDate = parseExcelDate(rawDate);
 
-            // ARCHITECT NOTE: We include the row index 'i' in the unique key.
-            // This allows multiple identical entries (e.g. 3 parking fees) on the same day,
-            // but prevents doubling if the same file is uploaded twice.
             if (parsedDate && amount > 0 && truckNo) {
-                const rawSignature = `DATE_${parsedDate}_ROW_${i}`;
+                // ARCHITECT FIX 2: Deterministic Maintenance Key
+                // Removed the reliance on row 'i'. Now hashes Truck + Date + Amount.
+                const safeDesc = (itemDesc || '').substring(0, 10).replace(/[^a-zA-Z0-9]/g, '');
+                const rawSignature = `MNT_${truckNo}_${parsedDate}_${amount}_${safeDesc}`;
                 const uniqueKey = rawSignature.replace(/[^a-zA-Z0-9_-]/g, '');
 
                 maintRecords.push([
