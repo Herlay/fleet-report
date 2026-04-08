@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { UploadCloud, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, Link, Globe } from 'lucide-react';
-import { uploadFile, uploadGoogleSheet } from '../services/api'; // Ensure you add uploadGoogleSheet to your api.js
+import { uploadFile, uploadGoogleSheet } from '../services/api'; 
 
 const UploadPage = () => {
-  const [uploadMethod, setUploadMethod] = useState('file'); // 'file' | 'link'
+  const [uploadMethod, setUploadMethod] = useState('file'); 
   const [file, setFile] = useState(null);
   const [sheetUrl, setSheetUrl] = useState('');
   const [status, setStatus] = useState('idle');

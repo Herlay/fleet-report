@@ -10,10 +10,10 @@ const auth0 = new ManagementClient({
 
 // 2. Initialize the Email Transporter (Architect V2)
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com', // ARCHITECT FIX: Do NOT use service: 'gmail'
-  port: 587,              // Use 587 (more reliable locally)
-  secure: false,          // Must be false for 587 (upgrades via STARTTLS)
-  requireTLS: true,       // Force TLS security
+  host: 'smtp.gmail.com', 
+  port: 587,              
+  secure: false,          
+  requireTLS: true,       
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
@@ -22,7 +22,6 @@ const transporter = nodemailer.createTransport({
     rejectUnauthorized: false
   },
   connectionTimeout: 15000, 
-  // 👇 This will now actually work because 'service' is removed 👇
   family: 4 
 });
 

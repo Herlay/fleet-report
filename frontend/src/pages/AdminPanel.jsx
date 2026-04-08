@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 
 const AdminPanel = () => {
-  // --- STATE ---
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);

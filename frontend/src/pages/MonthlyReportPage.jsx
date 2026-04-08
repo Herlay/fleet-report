@@ -28,8 +28,9 @@ const compactFmt = (v) => {
   }
   return `₦${val.toFixed(0)}`;
 };
+
 const MonthlyReportDashboard = () => {
-    const [selectedMonth, setSelectedMonth] = useState("2026-01");
+    const [selectedMonth, setSelectedMonth] = useState("2026-03");
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
     const reportRef = useRef();
@@ -53,42 +54,34 @@ const MonthlyReportDashboard = () => {
         }
     };
 
-    // --- PDF EXPORT (Fixed for perfect alignment and no cut-offs) ---
+    // --- PDF EXPORT ---
     const downloadPDF = async () => {
         const element = reportRef.current;
-        
-        // 1. Save the original styles so we can restore them later
         const originalWidth = element.style.width;
         const originalMaxWidth = element.style.maxWidth;
         const originalMargin = element.style.margin;
 
-        // 2. Force the container to a large desktop width (1440px) 
-        // This gives the tables enough room to naturally expand without needing scrollbars
         const targetWidth = 1440; 
         element.style.width = `${targetWidth}px`;
         element.style.maxWidth = `${targetWidth}px`;
-        element.style.margin = '0'; // Remove centering to prevent the "shifting" bug
+        element.style.margin = '0'; 
 
-        // 3. Take the snapshot
         const canvas = await html2canvas(element, { 
-            scale: 2, // High resolution for crisp text
+            scale: 2, 
             useCORS: true,
             windowWidth: targetWidth,
             scrollY: -window.scrollY,
-            x: 0, // Force snapshot to start exactly at the left edge
+            x: 0, 
             y: 0
         });
         
-        // 4. Instantly restore the page back to normal for the user
         element.style.width = originalWidth; 
         element.style.maxWidth = originalMaxWidth;
         element.style.margin = originalMargin;
 
-        // 5. Generate the PDF
         const imgData = canvas.toDataURL('image/jpeg', 1.0);
         const pdf = new jsPDF('p', 'pt', 'a4'); 
         
-        // Scale the 1440px wide image proportionally down to fit the A4 page width
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width; 
         
@@ -96,14 +89,12 @@ const MonthlyReportDashboard = () => {
         const pageHeight = pdf.internal.pageSize.getHeight();
 
         if (pdfHeight > pageHeight) {
-            // Multi-page PDF logic
             while (position < pdfHeight) {
                 pdf.addImage(imgData, 'JPEG', 0, position * -1, pdfWidth, pdfHeight);
                 position += pageHeight;
                 if (position < pdfHeight) pdf.addPage();
             }
         } else {
-            // Single page PDF
             pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
         }
         
@@ -115,7 +106,6 @@ const MonthlyReportDashboard = () => {
         if (!reportRef.current) return;
 
         const fileName = `Monthly_Fleet_Report_${selectedMonth}.doc`;
-
         const fileHeader = `
             <html xmlns:o='urn:schemas-microsoft-com:office:office' 
                   xmlns:w='urn:schemas-microsoft-com:office:word' 
@@ -123,12 +113,7 @@ const MonthlyReportDashboard = () => {
             <head>
               <meta charset='utf-8'>
               <style>
-                @page Section1 {
-                  size: 595.3pt 841.9pt; /* A4 */
-                  margin: 1.0in 0.75in 1.0in 0.75in;
-                  mso-header-margin: 35.4pt;
-                  mso-footer-margin: 35.4pt;
-                }
+                @page Section1 { size: 595.3pt 841.9pt; margin: 1.0in 0.75in; }
                 div.Section1 { page: Section1; }
                 body { font-family: "Calibri", "Segoe UI", sans-serif; font-size: 11pt; }
                 table { border-collapse: collapse; width: 100%; border: 1pt solid #e2e8f0; margin-bottom: 15pt; }
@@ -136,32 +121,22 @@ const MonthlyReportDashboard = () => {
                 td { padding: 8pt; border: 1pt solid #e2e8f0; vertical-align: top; font-size: 10pt; }
                 h1 { color: #1e3a8a; font-size: 22pt; margin-bottom: 5pt; }
                 h3 { color: #1e3a8a; font-size: 14pt; border-bottom: 1.5pt solid #1e3a8a; padding-bottom: 3pt; margin-top: 20pt; text-transform: uppercase; }
-                .stat-box { border: 1pt solid #e2e8f0; background-color: #f8fafc; padding: 10pt; }
-                .text-green { color: #16a34a; font-weight: bold; }
-                .text-red { color: #dc2626; font-weight: bold; }
                 .page-break { page-break-before: always; }
               </style>
             </head>
             <body><div class="Section1">`;
 
         const fileFooter = "</div></body></html>";
-
-        // Clone the report and clean it
         const clone = reportRef.current.cloneNode(true);
         
-        // Remove things Word hates (Charts, SVGs, Buttons)
         const elementsToRemove = clone.querySelectorAll('.no-print, canvas, svg, button');
         elementsToRemove.forEach(el => el.remove());
 
-        // Fix Layout: Convert Grid/Flex to Tables
         const gridSections = clone.querySelectorAll('[style*="display: grid"], [style*="display: flex"]');
-        gridSections.forEach(section => {
-            section.style.display = 'block'; // Fallback for Word
-        });
+        gridSections.forEach(section => { section.style.display = 'block'; });
 
         const sourceHTML = fileHeader + clone.innerHTML + fileFooter;
         const blob = new Blob(['\ufeff', sourceHTML], { type: 'application/msword' });
-        
         saveAs(blob, fileName);
     };
 
@@ -200,7 +175,7 @@ const MonthlyReportDashboard = () => {
         if (loading) return (
             <div className="w-full min-h-[400px] flex flex-col items-center justify-center bg-white rounded-xl shadow-sm border border-slate-100">
                 <Sparkles className="animate-pulse text-blue-600 mb-4" size={48} />
-                <p className="text-lg font-bold text-slate-700 italic">Gathering Monthly Reports...</p>
+                <p className="text-lg font-bold text-slate-700 italic">Generating Monthly Reports...</p>
             </div>
         );
 
@@ -214,9 +189,11 @@ const MonthlyReportDashboard = () => {
             prevMonthName = "Prev",
             currMonthName = "Curr",
             brands = [], 
-            brandTrends = [], 
+            brandTrends = [],
+            teuDistribution = [], 
+            topProfitability = [], 
+            redZone = [], 
             topVolume = [], 
-            topProfit = [],
             reportMonth = "Unknown",
             ai_insights = null 
         } = data;
@@ -267,21 +244,39 @@ const MonthlyReportDashboard = () => {
                                 </tr>
                                 <tr>
                                     <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontWeight: 'bold' }}>Trips Growth (MoM)</td>
-                                    <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold', color: (summary.trips_growth_val || 0) >= 0 ? '#16a34a' : '#dc2626' }}>
-                                        {(summary.trips_growth_val || 0) > 0 ? '+' : ''}{summary.trips_growth_val || 0} 
-                                        <span style={{ color: '#64748b', fontSize: '10px', marginLeft: '4px' }}>({summary.trips_growth_pct || 0}%)</span>
+                                    <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold', color: (summary.trips_growth_pct || 0) >= 0 ? '#16a34a' : '#dc2626' }}>
+                                        {(summary.trips_growth_pct || 0) > 0 ? '▲ +' : ((summary.trips_growth_pct || 0) < 0 ? '▼ ' : '')}{summary.trips_growth_pct || 0}% 
                                     </td>
                                 </tr>
                                 <tr>
                                     <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontWeight: 'bold' }}>Active Trucks</td>
                                     <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: '900', fontSize: '14px', color: '#1e3a8a' }}>
                                         {summary.active_trucks || 0}
+                                        
+                                        {/* DYNAMIC ARROW LOGIC FOR TRUCK GROWTH */}
+                                        {(() => {
+                                            const prevActive = trends.length > 1 ? trends[trends.length - 2].active_trucks : (summary.active_trucks || 0);
+                                            const diff = (summary.active_trucks || 0) - prevActive;
+                                            
+                                            if (diff === 0) return <span style={{ fontSize: '11px', marginLeft: '6px', color: '#64748b', fontWeight: 'bold' }}>(-)</span>;
+                                            
+                                            return (
+                                                <span style={{ 
+                                                    fontSize: '11px', 
+                                                    marginLeft: '6px', 
+                                                    color: diff > 0 ? '#16a34a' : '#dc2626',
+                                                    fontWeight: 'bold'
+                                                }}>
+                                                    ({diff > 0 ? '▲ +' : '▼ '}{diff})
+                                                </span>
+                                            );
+                                        })()}
                                     </td>
                                 </tr>
                                 <tr>
                                     <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontWeight: 'bolder' }}>Overall Fleet Utilization</td>
                                     <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bolder' }}>
-                                        {summary.utilization_pct || 0}%
+                                        {Math.min(100, summary.utilization_pct || 0)}%
                                     </td>
                                 </tr>
                                 <tr>
@@ -298,28 +293,20 @@ const MonthlyReportDashboard = () => {
                         <div style={{ display: 'flex', flexDirection: 'column', sm: {flexDirection: 'row'}, justifyContent: 'space-between', marginBottom: '15px' }}>
                             <strong style={{ color: '#1e3a8a', fontSize: '13px' }}>Financial Performance Statement</strong>
                         </div>
-                        </div>
-
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
-    {/* Gross Profit */}
-    <div style={{ padding: '12px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-        <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Gross Profit</div>
-        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>
-            {compactFmt(summary.financials?.gross)}
-        </div>
-    </div>
-    <div style={{ padding: '12px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-        <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Maintenance Spend</div>
-        <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#dc2626' }}>
-            - {compactFmt(summary.financials?.maintenance)}
-        </div>
-    </div>
-    <div style={{ backgroundColor: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-        <div style={{ fontSize: '10px', color: '#16a34a', fontWeight: 'bold', textTransform: 'uppercase' }}>Net Profit</div>
-        <div style={{ fontSize: '22px', fontWeight: '900', color: '#16a34a' }}>
-            {compactFmt(summary.financials?.net)}
-        </div>
-    </div>
+                            <div style={{ padding: '12px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                                <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Gross Profit</div>
+                                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>{compactFmt(summary.financials?.gross)}</div>
+                            </div>
+                            <div style={{ padding: '12px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                                <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>Maintenance</div>
+                                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#dc2626' }}>- {compactFmt(summary.financials?.maintenance)}</div>
+                            </div>
+                            <div style={{ backgroundColor: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                                <div style={{ fontSize: '10px', color: '#16a34a', fontWeight: 'bold', textTransform: 'uppercase' }}>Net Profit</div>
+                                <div style={{ fontSize: '22px', fontWeight: '900', color: '#16a34a' }}>{compactFmt(summary.financials?.net)}</div>
+                            </div>
+                        </div>
                     </div>
                 </section>
 
@@ -359,109 +346,166 @@ const MonthlyReportDashboard = () => {
                     </div>
                 </section>
 
-                {/* FLEET MANAGER INSIGHT */}
-                <section style={{ margin: '40px 0', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '20px' }}>
-                    <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '15px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {/* JOB DISTRIBUTION & TEUS */}
+                <section style={{ marginBottom: '40px', backgroundColor: '#fff', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                    <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '10px', textTransform: 'uppercase' }}>
+                        📦 Job Distribution 
+                    </h3>
+                    
+                        <h4 style={{ fontSize: '12px', fontWeight: 'bolder', color: '#850d0d', marginBottom: '10px', textTransform: 'uppercase' }}>
+                        NUMBER OF TEUS MOVED BY TRUCKS FOR {monthName}
+                    </h4>
+
+                    <div className="overflow-x-auto" style={{ marginBottom: '15px' }}>
+                        <table style={{ width: '100%', minWidth: '400px', borderCollapse: 'collapse', fontSize: '11px' }}>
+                            <thead>
+                                <tr style={{ backgroundColor: '#1e3a8a', color: '#fff' }}>
+                                    <th style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'left' }}>SIZE</th>
+                                    <th style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>NO. OF JOBS</th>
+                                    <th style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>NO OF TEUS</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {teuDistribution.map((t, i) => (
+                                    <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                                        <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontWeight: 'bold' }}>{t.size}</td>
+                                        <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>{t.jobs}</td>
+                                        <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', color: '#1d4ed8', fontWeight: 'bold' }}>{t.teus}</td>
+                                    </tr>
+                                ))}
+                                {teuDistribution.length === 0 && <tr><td colSpan="3" style={{ padding: '10px', textAlign: 'center' }}>No TEU data available</td></tr>}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p style={{ fontSize: '12px', color: '#1e293b', lineHeight: '1.6', textAlign: 'justify', fontWeight: '500' }}>
+                        {ai_insights?.teu_insights}
+                    </p>
+                </section>
+
+                {/* FLEET MANAGER INSIGHT (UPGRADED VERSION) */}
+                <section style={{ margin: '40px 0', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '20px 25px' }}>
+                    <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '8px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Users size={18} /> Fleet Manager Performance
                     </h3>
                     
-                    <div className="overflow-x-auto">
+                    {(() => {
+                        const prevTotalActive = trends.length > 1 ? trends[trends.length - 2].active_trucks : (summary.active_trucks || 0);
+                        const overallTruckChange = (summary.active_trucks || 0) - prevTotalActive;
+                        return (
+                            <p style={{ fontSize: '12px', color: '#475569', marginBottom: '16px', fontWeight: '500' }}>
+                                Operational Shift: Active commercial fleet 
+                                <span style={{ color: overallTruckChange < 0 ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>
+                                    {overallTruckChange < 0 ? ` decreased by ${Math.abs(overallTruckChange)}` : ` increased by ${overallTruckChange} units`}
+                                </span> compared to previous period.
+                            </p>
+                        );
+                    })()}
+
+                    <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '10px', marginBottom: '24px' }}>
                             <thead>
                                 <tr style={{ backgroundColor: '#1e3a8a', color: '#fff' }}>
-                                    <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'left' }}>Manager (Trucks)</th>
+                                    <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'left' }}>Fleet Managers</th>
                                     <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Active Trucks</th>
                                     <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>% Utilized</th>
                                     <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Trips</th>
                                     <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>% Trips</th>
                                     <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>T/T Ratio</th>
-                                    <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Target Hit</th>
                                     <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'right' }}>Net Profit</th>
-                                </tr>
-                            </thead>
-                          <tbody>
-  {managers.map((m, i) => (
-    <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-      <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', fontWeight: 'bold', color: '#1e293b' }}>
-        {m.name || 'Unknown'} ({m.capacity || 0})
-      </td>
-      <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold' }}>{m.active_trucks || 0}</td>
-      <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>{m.utilization_pct || 0}%</td>
-      <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold' }}>{m.total_trips || 0}</td>
-      <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', color: '#64748b' }}>{m.trip_share || 0}%</td>
-      <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold', color: '#1e3a8a', backgroundColor: '#f1f5f9' }}>{m.t_t || 0}</td>
-      <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold', color: (m.target_pct || 0) >= 100 ? '#16a34a' : '#ea580c' }}>{m.target_pct || 0}%</td>
-      
-      {/* UPDATED: Changed formatNairaFull to compactFmt */}
-      <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'right', fontWeight: 'bold' }}>
-        {compactFmt(m.profit)}
-      </td>
-    </tr>
-  ))}
-</tbody>
-                        </table>
-                    </div>
-
-                  {/* AI MANAGER INSIGHT */}
-{ai_insights?.manager_insights && (
-    <div className="ai-callout bg-teal-50/50 p-5 rounded-xl border border-teal-100 shadow-sm mt-4">
-        <h4 className="font-bold text-teal-900 mb-2 text-xs uppercase tracking-wider flex items-center gap-2" style={{color:"#134e4a", backgroundColor:"transparent", padding:"0"}}>
-            <span className="text-base">✨</span>Fleet Manager Performance Insights
-        </h4>
-        {/* Changed text-lg sm:text-base to text-xs sm:text-sm */}
-        <p className="text-[6px] sm:text-sm leading-tight text-slate-600 text-justify m-0" style={{ fontSize: '11px', color: 'black', fontWeight: 'bold'}}>
-            {ai_insights.manager_insights}
-        </p>
-    </div>
-)}
-                </section>
-
-                {/* BRAND PERFORMANCE BREAKDOWN */}
-                <section style={{ marginBottom: '40px', backgroundColor: '#fff', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                    <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '15px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        🚚 Brand Performance
-                    </h3>
-                    <div className="overflow-x-auto">
-                        <table style={{ width: '100%', minWidth: '500px', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '25px' }}>
-                            <thead>
-                                <tr style={{ backgroundColor: '#1e3a8a', color: '#fff' }}>
-                                    <th style={{ padding: '12px 10px', border: '1px solid #e2e8f0', textAlign: 'left' }}>Brand (Total)</th>
-                                    <th style={{ padding: '12px 10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Active Trucks</th>
-                                    <th style={{ padding: '12px 10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>% Utilized</th>
-                                    <th style={{ padding: '12px 10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Total Trips</th>
-                                    <th style={{ padding: '12px 10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>% Trips</th>
-                                    <th style={{ padding: '12px 10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>T/T Ratio</th>
+                                    <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'right' }}>Avg/Unit</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {brands.map((b, i) => (
-                                    <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                                        <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontWeight: 'bold' }}>{b.name} ({b.capacity})</td>
-                                        <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>{b.active_trucks}</td>
-                                        <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>{b.utilization_pct}%</td>
-                                        <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold' }}>{b.total_trips}</td>
-                                        <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>{b.trip_share}%</td>
-                                        <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold', color: '#1e3a8a' }}>{b.t_t}</td>
-                                    </tr>
-                                ))}
+                                {managers.map((m, i) => {
+                                    const activeTotal = Number(m.active_trucks || 0); 
+                                    const capacity = Number(m.capacity || 1); 
+                                    const revenueTrips = Number(m.total_trips || 0);
+                                    const profit = Number(m.profit || 0);
+                                    const tripShare = m.trip_share || 0;
+                                    const calcEfficiency = m.t_t || "0.0";
+                                    const avgProfit = m.avg_profit || 0;
+
+                                    // CAPPED AT 100%
+                                    const util = Math.min(100, Math.round((activeTotal / capacity) * 100));
+
+                                    // Extract the truck diff specifically for this manager
+                                    const mTrend = managerTrends.find(mt => mt.manager.toUpperCase() === (m.name || '').toUpperCase());
+                                    let truckDiff = 0;
+                                    if (mTrend) {
+                                        const currTrucksStr = mTrend.currentMonthDisplay?.match(/\((\d+)\)/)?.[1];
+                                        const prevTrucksStr = mTrend.lastMonthDisplay?.match(/\((\d+)\)/)?.[1];
+                                        if (currTrucksStr && prevTrucksStr) {
+                                            truckDiff = Number(currTrucksStr) - Number(prevTrucksStr);
+                                        }
+                                    }
+
+                                    return (
+                                        <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                                            <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', fontWeight: 'bold', color: '#1e293b' }}>
+                                                {m.name || 'Unknown'} ({capacity})
+                                            </td>
+                                            <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                    <span style={{ fontWeight: 'bold' }}>{activeTotal}</span>
+                                                    {truckDiff !== 0 && (
+                                                        <span style={{ fontSize: '8px', color: truckDiff > 0 ? '#16a34a' : '#dc2626', fontWeight: 'bold' }}>
+                                                            {truckDiff > 0 ? '▲' : '▼'} {Math.abs(truckDiff)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                                                {util}%
+                                            </td>
+                                            <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold' }}>
+                                                {revenueTrips}
+                                            </td>
+                                            <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', color: '#64748b' }}>
+                                                {tripShare}%
+                                            </td>
+                                            <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold', color: '#1e3a8a', backgroundColor: '#f1f5f9' }}>
+                                                {calcEfficiency}
+                                            </td>
+                                            <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'right', fontWeight: 'bold' }}>
+                                                {compactFmt(profit)}
+                                            </td>
+                                            <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'right', fontWeight: '500' }}>
+                                                {compactFmt(avgProfit)}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
-                    
-                    {/* AI BRAND ANALYSIS */}
-                    {ai_insights?.brand_insights && (
-                        <div className="ai-callout bg-teal-50/50 p-5 rounded-xl border border-teal-100 shadow-sm mt-4">
-                            <h4 className="font-bold text-teal-900 mb-2 text-sm uppercase tracking-wider flex items-center gap-2" style={{color:"#134e4a", backgroundColor:"transparent", padding:"0"}}>
-                                <span className="text-lg">✨</span> Brand Performance Insights
-                            </h4>
-                                 <p className="text-xs sm:text-sm leading-relaxed text-slate-700 text-justify m-0"  style={{ fontSize: '11px', color: 'black', fontWeight: 'bold'}}>
-                                {ai_insights.brand_insights}
-                            </p>
+
+                    {/*Fleet Manager Performance*/}
+                    <div style={{ padding: '20px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+                        <h4 style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '12px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Activity size={14} /> Fleet Managers Performance Analysis
+                        </h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                            {managers.map((m, i) => {
+                                const activeTotal = Number(m.active_trucks || 0);
+                                const capacity = Number(m.capacity || 1);
+                                const util = Math.min(100, Math.round((activeTotal / capacity) * 100));
+                                const revTrips = Number(m.total_trips || 0);
+                                const profit = Number(m.profit || 0); 
+                                const commercialShare = m.trip_share || 0;
+                                const calcEff = m.t_t || "0.0";
+                                
+                                return (
+                                    <div key={i} style={{ fontSize: '11px', color: '#334155', lineHeight: '1.6', paddingLeft: '10px', borderLeft: '3px solid #cbd5e1' }}>
+                                        <strong style={{ color: '#1e3a8a', textTransform: 'capitalize' }}>{m.name}:</strong> Managed {activeTotal} active trucks ({util}% util). Contributed <span style={{ fontWeight: 'bold' }}>{revTrips} trips</span> ({commercialShare}% share) generating <span style={{ color: '#16a34a', fontWeight: 'bold' }}>{compactFmt(profit)}</span> with T/T of <span style={{ color: parseFloat(calcEff) >= 10.0 ? '#16a34a' : '#c2410c', fontWeight: 'bold' }}>{calcEff}</span>.
+                                    </div>
+                                );
+                            })}
                         </div>
-                    )}
+                    </div>
                 </section>
 
-                {/* MANAGER MoM TRENDS */}
+                  {/* MANAGER MoM TRENDS */}
                 <section style={{ marginBottom: '40px', backgroundColor: '#fff', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                     <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '15px', textTransform: 'uppercase' }}>
                         📈 Fleet Managers MoM Trend ({prevMonthName} vs {currMonthName})
@@ -500,7 +544,169 @@ const MonthlyReportDashboard = () => {
                     </div>
                 </section>
 
-                {/* TOP PERFORMERS SECTION */}
+             {/* BRAND PERFORMANCE BREAKDOWN */}
+                <section style={{ marginBottom: '40px', backgroundColor: '#fff', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                    <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '15px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        🚚 Brand Performance
+                    </h3>
+                    <div className="overflow-x-auto">
+                        <table style={{ width: '100%', minWidth: '500px', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '25px' }}>
+                            <thead>
+                                <tr style={{ backgroundColor: '#1e3a8a', color: '#fff' }}>
+                                    <th style={{ padding: '12px 10px', border: '1px solid #e2e8f0', textAlign: 'left' }}>Brand (Total)</th>
+                                    <th style={{ padding: '12px 10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Active Trucks</th>
+                                    <th style={{ padding: '12px 10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>% Utilized</th>
+                                    <th style={{ padding: '12px 10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Total Trips</th>
+                                    <th style={{ padding: '12px 10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>% Trips</th>
+                                    <th style={{ padding: '12px 10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>T/T Ratio</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {brands.map((b, i) => {
+                                    const capacity = Number(b.capacity || 1);
+                                    const rawActive = Number(b.active_trucks || 0);
+                                    
+                                    const activeTotal = Math.min(rawActive, capacity);
+                                    const util = Math.round((activeTotal / capacity) * 100);
+                                    
+                                    const revenueTrips = Number(b.total_trips || 0);
+                                    const calcEfficiency = activeTotal > 0 ? (revenueTrips / activeTotal).toFixed(1) : "0.0";
+
+                                    return (
+                                        <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                                            <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontWeight: 'bold' }}>{b.name} ({capacity})</td>
+                                            <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold' }}>{activeTotal}</td>
+                                            <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>{util}%</td>
+                                            <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold' }}>{revenueTrips}</td>
+                                            <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>{b.trip_share}%</td>
+                                            <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold', color: '#1e3a8a' }}>{calcEfficiency}</td>
+                                        </tr>
+                                    );
+                                })}
+
+                                {/* ARCHITECT FIX: DYNAMIC TOTAL ROW */}
+                                {(() => {
+                                    if (!brands || brands.length === 0) return null;
+
+                                    const totalBrandCapacity = brands.reduce((sum, b) => sum + Number(b.capacity || 0), 0);
+                                    const totalBrandActive = brands.reduce((sum, b) => sum + Math.min(Number(b.active_trucks || 0), Number(b.capacity || 1)), 0);
+                                    const totalBrandTrips = brands.reduce((sum, b) => sum + Number(b.total_trips || 0), 0);
+                                    const totalBrandShare = brands.reduce((sum, b) => sum + Number(b.trip_share || 0), 0);
+                                    
+                                    const totalBrandUtil = totalBrandCapacity > 0 ? Math.round((totalBrandActive / totalBrandCapacity) * 100) : 0;
+                                    const totalBrandEfficiency = totalBrandActive > 0 ? (totalBrandTrips / totalBrandActive).toFixed(1) : "0.0";
+
+                                    return (
+                                        <tr style={{ backgroundColor: '#f1f5f9', borderTop: '2px solid #1e3a8a' }}>
+                                            <td style={{ padding: '10px', border: '1px solid #e2e8f0', fontWeight: '900', color: '#1e3a8a', textTransform: 'uppercase' }}>
+                                                TOTAL ({totalBrandCapacity})
+                                            </td>
+                                            <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: '900', color: '#1e3a8a' }}>
+                                                {totalBrandActive}
+                                            </td>
+                                            <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: '900', color: '#1e3a8a' }}>
+                                                {totalBrandUtil}%
+                                            </td>
+                                            <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: '900', color: '#1e3a8a' }}>
+                                                {totalBrandTrips}
+                                            </td>
+                                            <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: '900', color: '#1e3a8a' }}>
+                                                {Math.round(totalBrandShare)}%
+                                            </td>
+                                            <td style={{ padding: '10px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: '900', color: '#16a34a' }}>
+                                                {totalBrandEfficiency}
+                                            </td>
+                                        </tr>
+                                    );
+                                })()}
+
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    {ai_insights?.brand_insights && (
+                        <div className="ai-callout bg-teal-50/50 p-5 rounded-xl border border-teal-100 shadow-sm mt-4">
+                            <h4 className="font-bold text-teal-900 mb-2 text-sm uppercase tracking-wider flex items-center gap-2" style={{color:"#134e4a", backgroundColor:"transparent", padding:"0"}}>
+                                <span className="text-lg">✨</span> Brand Performance Insights
+                            </h4>
+                            <p className="text-xs sm:text-sm leading-relaxed text-slate-700 text-justify m-0"  style={{ fontSize: '11px', color: 'black', fontWeight: 'bold'}}>
+                                {ai_insights.brand_insights}
+                            </p>
+                        </div>
+                    )}
+                </section>
+
+{/* BRAND MoM TREND */}
+                {brandTrends && brandTrends.length > 0 && (
+                    <section style={{ marginBottom: '40px', backgroundColor: '#fff', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                        <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '15px', textTransform: 'uppercase' }}>
+                            📈 Trips MoM Change by Brand
+                        </h3>
+                        <div className="overflow-x-auto">
+                            <table style={{ width: '100%', minWidth: '800px', borderCollapse: 'collapse', fontSize: '10px', marginBottom: '10px' }}>
+                                <thead>
+                                    <tr style={{ backgroundColor: '#475569', color: '#fff' }}>
+                                        <th style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'left' }}>Brand</th>
+                                        
+                                        {/* Dynamic Month Headers */}
+                                        {brandTrends[0].monthlyData.map((md, idx) => (
+                                            <th key={`month-head-${idx}`} style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center' }}>
+                                                {md.label} Trips / (Trucks)
+                                            </th>
+                                        ))}
+                                        
+                                        {/* Dynamic Change Headers */}
+                                        {brandTrends[0].monthlyData.map((md, idx) => {
+                                            if (idx === 0) return null;
+                                            const prevLabel = brandTrends[0].monthlyData[idx - 1].label;
+                                            return (
+                                                <th key={`change-head-${idx}`} style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center', backgroundColor: '#334155' }}>
+                                                    % Change ({md.label} vs {prevLabel})
+                                                </th>
+                                            );
+                                        })}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {brandTrends.map((bt, i) => (
+                                        <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                                            <td style={{ padding: '10px', border: '1px solid #ddd', fontWeight: 'bold', color: '#1e293b' }}>
+                                                {bt.brand}
+                                            </td>
+                                            
+                                            {/* Trips / (Trucks) Data */}
+                                            {bt.monthlyData.map((md, idx) => (
+                                                <td key={`data-${idx}`} style={{ padding: '10px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 'bold' }}>
+                                                    {md.display}
+                                                </td>
+                                            ))}
+                                            
+                                            {/* Percentage Changes */}
+                                            {bt.changes.map((change, idx) => {
+                                                if (idx === 0) return null;
+                                                const isNegative = change && change.includes('-');
+                                                const isPositive = change && change.includes('+');
+                                                return (
+                                                    <td key={`change-${idx}`} style={{ 
+                                                        padding: '10px', 
+                                                        border: '1px solid #ddd', 
+                                                        textAlign: 'center', 
+                                                        fontWeight: 'bold', 
+                                                        color: isNegative ? '#dc2626' : isPositive ? '#16a34a' : '#64748b' 
+                                                    }}>
+                                                        {change || '0%'}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                )}
+               
+              {/* TOP PERFORMERS SECTION */}
                 <section style={{ marginBottom: '40px', pageBreakBefore: 'always' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '25px' }}>
                         
@@ -514,18 +720,36 @@ const MonthlyReportDashboard = () => {
                                         <th style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center' }}>Brand</th>
                                         <th style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center' }}>Trips</th>
                                         <th style={{ padding: '6px', border: '1px solid #ddd' }}>Manager</th>
+                                        <th style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'right' }}>Net Profit</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {topVolume.slice(0, 5).map((t, i) => (
-                                        <tr key={i}>
-                                            <td style={{ padding: '6px', border: '1px solid #ddd', fontWeight: 'bold' }}>{t.truck_number}</td>
-                                            <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center' }}>{t.brand}</td>
-                                            <td style={{ padding: '6px', border: '1px solid #ddd', fontWeight: 'bold', textAlign: 'center', color: '#1d4ed8' }}>{t.trips}</td>
-                                            <td style={{ padding: '6px', border: '1px solid #ddd' }}>{t.fm}</td>
-                                        </tr>
-                                    ))}
-                                    {topVolume.length === 0 && <tr><td colSpan="4" style={{ padding: '10px', textAlign: 'center' }}>No data available</td></tr>}
+                                    {topVolume.slice(0, 5).map((t, i) => {
+                                        // ARCHITECT FIX: Smart lookup to find this truck's profit from the other arrays
+                                        const profitMatch = topProfitability.find(pt => pt.truck_number === t.truck_number) 
+                                                         || redZone.find(rt => rt.truck_number === t.truck_number);
+                                        
+                                        const netProfit = t.net_profit !== undefined ? t.net_profit : (profitMatch?.net_profit || 0);
+
+                                        return (
+                                            <tr key={i}>
+                                                <td style={{ padding: '6px', border: '1px solid #ddd', fontWeight: 'bold' }}>{t.truck_number}</td>
+                                                <td style={{ padding: '6px', border: '1px solid #ddd', textAlign: 'center' }}>{t.brand}</td>
+                                                <td style={{ padding: '6px', border: '1px solid #ddd', fontWeight: 'bold', textAlign: 'center', color: '#1d4ed8' }}>{t.trips}</td>
+                                                <td style={{ padding: '6px', border: '1px solid #ddd' }}>{t.fm}</td>
+                                                <td style={{ 
+                                                    padding: '6px', 
+                                                    border: '1px solid #ddd', 
+                                                    textAlign: 'right', 
+                                                    fontWeight: 'bold', 
+                                                    color: netProfit >= 0 ? '#16a34a' : '#dc2626' 
+                                                }}>
+                                                    {compactFmt(netProfit)}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {topVolume.length === 0 && <tr><td colSpan="5" style={{ padding: '10px', textAlign: 'center' }}>No data available</td></tr>}
                                 </tbody>
                             </table>
                         </div>
@@ -543,21 +767,20 @@ const MonthlyReportDashboard = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {topProfit.slice(0, 5).map((t, i) => (
+                                    {topProfitability.slice(0, 5).map((t, i) => (
                                         <tr key={i}>
                                             <td style={{ padding: '6px', border: '1px solid #ddd', fontWeight: 'bold' }}>{t.truck_number}</td>
                                             <td style={{ padding: '6px', border: '1px solid #ddd', fontWeight: 'bold', textAlign: 'center' }}>{t.trips}</td>
-                                            <td style={{ padding: '6px', border: '1px solid #ddd', color: '#1e3a8a', fontWeight: 'bold', textAlign: 'right' }}>{formatNairaFull(t.net_profit)}</td>
+                                            <td style={{ padding: '6px', border: '1px solid #ddd', color: '#1e3a8a', fontWeight: 'bold', textAlign: 'right' }}>{compactFmt(t.net_profit)}</td>
                                             <td style={{ padding: '6px', border: '1px solid #ddd' }}>{t.fm}</td>
                                         </tr>
                                     ))}
-                                    {topProfit.length === 0 && <tr><td colSpan="4" style={{ padding: '10px', textAlign: 'center' }}>No data available</td></tr>}
+                                    {topProfitability.length === 0 && <tr><td colSpan="4" style={{ padding: '10px', textAlign: 'center' }}>No data available</td></tr>}
                                 </tbody>
                             </table>
                         </div>
                     </div>
 
-                    {/* AI TOP PERFORMER INSIGHT */}
                     {ai_insights?.top_performer_insights && (
                         <div className="ai-callout bg-teal-50/50 p-5 rounded-xl border border-teal-100 shadow-sm mt-4">
                             <h4 className="font-bold text-teal-900 mb-2 text-sm uppercase tracking-wider flex items-center gap-2" style={{color:"#134e4a", backgroundColor:"transparent", padding:"0"}}>
@@ -568,6 +791,120 @@ const MonthlyReportDashboard = () => {
                             </p>
                         </div>
                     )}
+                </section>
+
+                {/* TRUCK PROFITABILITY (TOP 15) */}
+                <section style={{ marginBottom: '40px', pageBreakBefore: 'always' }}>
+                    <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#1a1e4e', marginBottom: '10px', textTransform: 'uppercase' }}>
+                        💰 Top 15 Trucks by Net Profit
+                    </h3>
+                    <div className="overflow-x-auto">
+                        <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '9px' }}>
+                            <thead>
+                                <tr style={{ backgroundColor: '#068010', color: '#fff' }}>
+                                    <th style={{ padding: '8px', border: '1px solid #ddd' }}>Truck No</th>
+                                    <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>IT (₦)</th>
+                                    <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>NON-IT (₦)</th>
+                                    <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>Trips</th>
+                                    <th style={{ padding: '8px', border: '1px solid #ddd' }}>Fleet Manager</th>
+                                    <th style={{ padding: '8px', border: '1px solid #ddd' }}>Brand</th>
+                                    <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>Profit (₦)</th>
+                                    <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>Maint (₦)</th>
+                                    <th style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'right' }}>Net Profit (₦)</th>
+                                </tr>
+                            </thead>
+                          <tbody>
+    {topProfitability.slice(0, 15).map((t, i) => {
+        // Prepare the values to ensure they are numbers
+        const itVal = Number(t.it_profit || 0);
+        const nonItVal = Number(t.non_it_profit || 0);
+        const grossVal = Number(t.profit || 0);
+        const maintVal = Number(t.maint || 0);
+        const netVal = Number(t.net_profit || 0);
+
+        return (
+            <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                <td style={{ padding: '8px 4px', border: '1px solid #ddd', fontWeight: 'bold' }}>{t.truck_number}</td>
+                
+                {/* IT PROFIT - Exact formatting, no rounding */}
+                <td style={{ padding: '8px 4px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap', color: itVal > 0 ? '#1e293b' : '#94a3b8' }}>
+                    {formatNairaFull(itVal)}
+                </td>
+                
+                {/* NON-IT PROFIT - Exact formatting, no rounding */}
+                <td style={{ padding: '8px 4px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap', color: nonItVal > 0 ? '#1e293b' : '#94a3b8' }}>
+                    {formatNairaFull(nonItVal)}
+                </td>
+                
+                <td style={{ padding: '8px 4px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 'bold' }}>{t.trips}</td>
+                <td style={{ padding: '8px 4px', border: '1px solid #e6d8d8', fontSize: '8px', fontWeight: 'bold' }}>{t.fm}</td>
+                <td style={{ padding: '8px 4px', border: '1px solid #ddd' }}>{t.brand}</td>
+                
+                {/* GROSS PROFIT */}
+                <td style={{ padding: '8px 4px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: '500' }}>
+                    {formatNairaFull(grossVal)}
+                </td>
+                
+                {/* MAINTENANCE - Show as negative if > 0 */}
+                <td style={{ padding: '8px 4px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap', color: '#dc2626' }}>
+                    {maintVal > 0 ? `-${formatNairaFull(maintVal)}` : '₦0'}
+                </td>
+                
+                {/* NET PROFIT - Highlighted background for the most important column */}
+                <td style={{ 
+                    padding: '8px 4px', 
+                    border: '1px solid #ddd', 
+                    textAlign: 'right', 
+                    whiteSpace: 'nowrap', 
+                    fontWeight: '900', 
+                    backgroundColor: i % 2 === 0 ? '#f0f9ff' : '#e0f2fe',
+                    color: netVal >= 0 ? '#16a34a' : '#dc2626' 
+                }}>
+                    {formatNairaFull(netVal)}
+                </td>
+            </tr>
+        );
+    })}
+    {topProfitability.length === 0 && (
+        <tr><td colSpan="9" style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>No profitability data available</td></tr>
+    )}
+</tbody>
+                        </table>
+                    </div>
+                </section>
+
+                {/* THE RED ZONE */}
+                <section style={{ marginBottom: '20px' }}>
+                    <h3 style={{ fontSize: '14px', fontWeight: '900', color: '#dc2626', marginBottom: '10px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        🔴🔴🔴 THE RED ZONE (Negative Profit Trucks)
+                    </h3>
+                    <div className="overflow-x-auto">
+                        <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '9px' }}>
+                            <thead>
+                                <tr style={{ backgroundColor: '#dc2626', color: '#fff' }}>
+                                    <th style={{ padding: '8px', border: '1px solid #fca5a5' }}>Truck No</th>
+                                    <th style={{ padding: '8px', border: '1px solid #fca5a5', textAlign: 'center' }}>Trips</th>
+                                    <th style={{ padding: '8px', border: '1px solid #fca5a5', textAlign: 'right' }}>Profit (₦)</th>
+                                    <th style={{ padding: '8px', border: '1px solid #fca5a5', textAlign: 'right' }}>Maint (₦)</th>
+                                    <th style={{ padding: '8px', border: '1px solid #fca5a5', textAlign: 'right' }}>Net Profit (₦)</th>
+                                    <th style={{ padding: '8px', border: '1px solid #fca5a5' }}>Fleet Managers</th>
+                                 </tr>
+                            </thead>
+                            <tbody>
+                                {redZone.map((t, i) => (
+                                    <tr key={i} style={{ backgroundColor: '#fef2f2' }}>
+                                        <td style={{ padding: '8px', border: '1px solid #fecaca', fontWeight: 'bold' }}>{t.truck_number}</td>
+                                        <td style={{ padding: '8px', border: '1px solid #fecaca', textAlign: 'center', fontWeight: 'bold' }}>{t.trips}</td>
+                                        <td style={{ padding: '8px', border: '1px solid #fecaca', textAlign: 'right' }}>{formatNairaFull(t.profit)}</td>
+                                        <td style={{ padding: '8px', border: '1px solid #fecaca', textAlign: 'right', color: '#dc2626' }}>{formatNairaFull(t.maint)}</td>
+                                        <td style={{ padding: '8px', border: '1px solid #fecaca', textAlign: 'right', fontWeight: 'bold', color: '#dc2626' }}>{formatNairaFull(t.net_profit)}</td>
+                                        <td style={{ padding: '8px', border: '1px solid #fecaca', fontWeight: 'bold' }}>{t.fm}</td>
+                                    </tr>
+                                ))}
+                                {redZone.length === 0 && <tr><td colSpan="7" style={{ padding: '10px', textAlign: 'center', backgroundColor: '#fef2f2', color: '#dc2626' }}>No trucks in the red zone!</td></tr>}
+                            </tbody>
+                        </table>
+                    </div>
                 </section>
 
             </div>
