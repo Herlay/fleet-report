@@ -427,6 +427,9 @@ export const getWeeklyReportMetrics = async (startDate, endDate, absoluteWeek = 
             
             const profitPct = calcPct(netProfit, prevNetProfit);
 
+            // ARCHITECT FIX: Calculate the Target Percentage based on active trucks
+            const targetPct = cm.active_trucks > 0 ? Math.round((cm.trucks_met_target / cm.active_trucks) * 100) : 0;
+
             return { 
                 ...cm, 
                 name: cm.name.charAt(0) + cm.name.slice(1).toLowerCase(),
@@ -436,7 +439,8 @@ export const getWeeklyReportMetrics = async (startDate, endDate, absoluteWeek = 
                 efficiency: (cm.trips / (cm.active_trucks || 1)).toFixed(1),
                 wow: `${profitPct >= 0 ? '+' : ''}${profitPct}%`,
                 profit: netProfit,
-                avg_profit: cm.active_trucks > 0 ? Math.round(netProfit / cm.active_trucks) : 0
+                avg_profit: cm.active_trucks > 0 ? Math.round(netProfit / cm.active_trucks) : 0,
+                target_pct: targetPct // <--- Sent to frontend!
             };
         });
 

@@ -58,7 +58,7 @@ const LoginPage = () => {
               <div className="bg-indigo-600 p-1.5 rounded flex items-center justify-center">
                 <Truck size={20} className="text-white" strokeWidth={2.5} />
               </div>
-              <span className="text-lg font-bold text-slate-900 tracking-tight">WatchTower</span>
+              <span className="text-lg font-bold text-slate-900 tracking-tight">Fleet Report System</span>
             </div>
           </div>
 
@@ -97,7 +97,7 @@ const LoginPage = () => {
             <div className="bg-slate-50 border border-slate-200 rounded-md p-4 flex items-start gap-3">
               <Info className="text-indigo-600 shrink-0 mt-0.5" size={16} />
               <p className="text-[13px] text-red-600 leading-relaxed font-medium">
-                New here? Sign in with your company email, then verify the link sent to your inbox.
+                New here? Sign in with your email, then verify the link sent to your inbox.
               </p>
             </div>
           )}

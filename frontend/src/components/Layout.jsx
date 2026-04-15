@@ -7,8 +7,7 @@ import {
   ChevronRight, Bell
 } from 'lucide-react';
 
-// --- SAAS SIDEBAR ITEM COMPONENT ---
-// Architect Fix: We use the `isActive` state from NavLink to style the Icon without passing a function directly to the Icon component.
+// SAAS SIDEBAR ITEM COMPONENT ---
 const SidebarItem = ({ icon: Icon, label, to, onClick }) => (
   <NavLink
     to={to}

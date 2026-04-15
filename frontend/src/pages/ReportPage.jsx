@@ -437,109 +437,114 @@ const ReportPage = () => {
             })()}
         </div>
 
-       {/* FLEET MANAGER INSIGHT */}
-<section style={{ margin: '40px 0', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '20px 25px' }}>
-  <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '8px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
-    <Users size={18} /> Fleet Manager Performance
-  </h3>
-  
-  <p style={{ fontSize: '12px', color: '#475569', marginBottom: '16px', fontWeight: '500' }}>
-    Operational Shift: Active commercial fleet 
-    <span style={{ color: (Number(metrics?.truckChange) || 0) < 0 ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>
-      {(Number(metrics?.truckChange) || 0) < 0 ? ` decreased by ${Math.abs(metrics?.truckChange)}` : ` increased by ${metrics?.truckChange || 0} units`}
-    </span> compared to previous period.
-  </p>
+{/* FLEET MANAGER INSIGHT */}
+    <section style={{ margin: '40px 0', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', padding: '20px 25px' }}>
+      <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '8px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <Users size={18} /> Fleet Manager Performance
+      </h3>
+      
+      <p style={{ fontSize: '12px', color: '#475569', marginBottom: '16px', fontWeight: '500' }}>
+        Operational Shift: Active commercial fleet 
+        <span style={{ color: (Number(metrics?.truckChange) || 0) < 0 ? '#dc2626' : '#16a34a', fontWeight: 'bold' }}>
+          {(Number(metrics?.truckChange) || 0) < 0 ? ` decreased by ${Math.abs(metrics?.truckChange)}` : ` increased by ${metrics?.truckChange || 0} units`}
+        </span> compared to previous period.
+      </p>
 
-  <div style={{ overflowX: 'auto' }}>
-    <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '10px', marginBottom: '24px' }}>
-      <thead>
-        <tr style={{ backgroundColor: '#1e3a8a', color: '#fff' }}>
-          <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'left' }}>Fleet Managers</th>
-          <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Active Trucks</th>
-          <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>% Utilized</th>
-          <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Trips</th>
-          <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>% Trips</th>
-          <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>T/T Ratio</th>
-          <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'right' }}>Net Profit</th>
-          <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'right' }}>Avg/Unit</th>
-        </tr>
-      </thead>
-      <tbody>
-        {metrics?.managers?.map((m, i) => {
-          const activeTotal = Number(m?.active_trucks || 0); 
-          const revenueUnits = Number(m?.revenue_trucks || 0); 
-          const capacity = Number(m?.total_capacity || 1); // <--- DYNAMIC DB CAPACITY!
-          const revenueTrips = Number(m?.trips || 0);
-          const profit = Number(m?.profit || 0);
-          const totalCommVol = Number(metrics?.trips_breakdown?.non_it || 1);
-          
-          const calcEfficiency = revenueUnits > 0 ? (revenueTrips / revenueUnits).toFixed(1) : "0.0";
-          const truckDiff = Number(m?.truck_diff || 0);
-
-          return (
-            <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-              <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', fontWeight: 'bold', color: '#1e293b' }}>
-                {m.name} ({capacity})
-              </td>
-              <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 'bold' }}>{activeTotal}</span>
-                  {truckDiff !== 0 && (
-                    <span style={{ fontSize: '8px', color: truckDiff > 0 ? '#16a34a' : '#dc2626', fontWeight: 'bold' }}>
-                      {truckDiff > 0 ? '▲' : '▼'} {Math.abs(truckDiff)}
-                    </span>
-                  )}
-                </div>
-              </td>
-              <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                {Math.round((activeTotal / capacity) * 100)}%
-              </td>
-              <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold' }}>
-                {revenueTrips}
-              </td>
-              <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', color: '#64748b' }}>
-                {Math.round((revenueTrips / totalCommVol) * 100)}%
-              </td>
-              <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold', color: '#1e3a8a', backgroundColor: '#f1f5f9' }}>
-                {calcEfficiency}
-              </td>
-              <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'right', fontWeight: 'bold' }}>
-                {compactFmt(profit)}
-              </td>
-              <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'right', fontWeight: '500' }}>
-                {compactFmt(activeTotal > 0 ? profit / activeTotal : 0)}
-              </td>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', minWidth: '750px', borderCollapse: 'collapse', fontSize: '10px', marginBottom: '24px' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#1e3a8a', color: '#fff' }}>
+              <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'left' }}>Fleet Managers (Trucks)</th>
+              <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Active Trucks</th>
+              <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>% Utilized</th>
+              <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>Trips</th>
+              <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>% Trips</th>
+              <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>T/T Ratio</th>
+              <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>% Target (3+ Trips)</th>
+              <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'right' }}>Net Profit</th>
+              <th style={{ padding: '12px 8px', border: '1px solid #e2e8f0', textAlign: 'right' }}>Avg/Unit</th>
             </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  </div>
+          </thead>
+          <tbody>
+            {metrics?.managers?.map((m, i) => {
+              const activeTotal = Number(m?.active_trucks || 0); 
+              const revenueUnits = Number(m?.revenue_trucks || 0); 
+              const capacity = Number(m?.total_capacity || 1); // <--- DYNAMIC DB CAPACITY!
+              const revenueTrips = Number(m?.trips || 0);
+              const profit = Number(m?.profit || 0);
+              const totalCommVol = Number(metrics?.trips_breakdown?.non_it || 1);
+              
+              const calcEfficiency = revenueUnits > 0 ? (revenueTrips / revenueUnits).toFixed(1) : "0.0";
+              const truckDiff = Number(m?.truck_diff || 0);
+              const targetHit = Number(m?.target_pct || 0);
 
-  {/* Performance Analysis Box */}
-  <div style={{ padding: '20px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-    <h4 style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '12px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
-      <Activity size={14} /> Fleet Managers Performance Analysis
-    </h4>
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-      {metrics?.managers?.map((m, i) => {
-        const activeTotal = Number(m?.active_trucks || 0);
-        const revenueUnits = Number(m?.revenue_trucks || 0);
-        const util = Math.round((activeTotal / (Number(m?.total_capacity) || 1)) * 100);
-        const revTrips = Number(m?.trips || 0);
-        const profit = Number(m?.profit || 0); 
-        const commercialShare = Math.round((revTrips / Number(metrics?.trips_breakdown?.non_it || 1)) * 100);
-        const calcEff = revenueUnits > 0 ? (revTrips / revenueUnits).toFixed(1) : "0.0";
-        
-        return (
-          <div key={i} style={{ fontSize: '11px', color: '#334155', lineHeight: '1.6', paddingLeft: '10px', borderLeft: '3px solid #cbd5e1' }}>
-            <strong style={{ color: '#1e3a8a' }}>{m.name}:</strong> Managed {activeTotal} active trucks ({util}% util). Contributed <span style={{ fontWeight: 'bold' }}>{revTrips} trips</span> ({commercialShare}% share) generating <span style={{ color: '#16a34a', fontWeight: 'bold' }}>{fmtM(profit)}</span> with T/T of <span style={{ color: parseFloat(calcEff) >= 3.0 ? '#16a34a' : '#c2410c', fontWeight: 'bold' }}>{calcEff}</span>.
-          </div>
-        );
-      })}
-    </div>
-  </div>
-</section>
+              return (
+                <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                  <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', fontWeight: 'bold', color: '#1e293b' }}>
+                    {m.name} ({capacity})
+                  </td>
+                  <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 'bold' }}>{activeTotal}</span>
+                      {truckDiff !== 0 && (
+                        <span style={{ fontSize: '8px', color: truckDiff > 0 ? '#16a34a' : '#dc2626', fontWeight: 'bold' }}>
+                          {truckDiff > 0 ? '▲' : '▼'} {Math.abs(truckDiff)}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                    {Math.round((activeTotal / capacity) * 100)}%
+                  </td>
+                  <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold' }}>
+                    {revenueTrips}
+                  </td>
+                  <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', color: '#64748b' }}>
+                    {Math.round((revenueTrips / totalCommVol) * 100)}%
+                  </td>
+                  <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold', color: '#1e3a8a', backgroundColor: '#f1f5f9' }}>
+                    {calcEfficiency}
+                  </td>
+                  <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 'bold', color: targetHit >= 50 ? '#16a34a' : '#ea580c' }}>
+                    {targetHit}%
+                  </td>
+                  <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'right', fontWeight: 'bold' }}>
+                    {compactFmt(profit)}
+                  </td>
+                  <td style={{ padding: '10px 8px', border: '1px solid #e2e8f0', textAlign: 'right', fontWeight: '500' }}>
+                    {compactFmt(activeTotal > 0 ? profit / activeTotal : 0)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Performance Analysis Box */}
+      <div style={{ padding: '20px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+        <h4 style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e3a8a', marginBottom: '12px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Activity size={14} /> Fleet Managers Performance Analysis
+        </h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          {metrics?.managers?.map((m, i) => {
+            const activeTotal = Number(m?.active_trucks || 0);
+            const revenueUnits = Number(m?.revenue_trucks || 0);
+            const util = Math.round((activeTotal / (Number(m?.total_capacity) || 1)) * 100);
+            const revTrips = Number(m?.trips || 0);
+            const profit = Number(m?.profit || 0); 
+            const commercialShare = Math.round((revTrips / Number(metrics?.trips_breakdown?.non_it || 1)) * 100);
+            const calcEff = revenueUnits > 0 ? (revTrips / revenueUnits).toFixed(1) : "0.0";
+            
+            return (
+              <div key={i} style={{ fontSize: '11px', color: '#334155', lineHeight: '1.6', paddingLeft: '10px', borderLeft: '3px solid #cbd5e1' }}>
+                <strong style={{ color: '#1e3a8a' }}>{m.name}:</strong> Managed {activeTotal} active trucks ({util}% util). Contributed <span style={{ fontWeight: 'bold' }}>{revTrips} trips</span> ({commercialShare}% share) generating <span style={{ color: '#16a34a', fontWeight: 'bold' }}>{fmtM(profit)}</span> with T/T of <span style={{ color: parseFloat(calcEff) >= 3.0 ? '#16a34a' : '#c2410c', fontWeight: 'bold' }}>{calcEff}</span>.
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
 
       {/* BRAND PERFORMANCE BREAKDOWN */}
 <section style={{ marginBottom: '40px', backgroundColor: '#fff', padding: '20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
