@@ -46,10 +46,10 @@ export const handleGoogleSheet = async (req, res) => {
 
         console.log("Downloading from Google:", downloadUrl);
 
-        // --- CRITICAL FIX: Add Anti-Bot Headers to prevent ECONNRESET ---
+        // --- FIXED: Timeout increased to 60 seconds ---
         const response = await axios.get(downloadUrl, { 
             responseType: 'arraybuffer',
-            timeout: 15000, // Wait up to 15 seconds before failing
+            timeout: 60000, 
             headers: {
                 // Trick Google into thinking this is a real browser
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
