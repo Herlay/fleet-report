@@ -18,9 +18,18 @@ const safeFloat = (val) => {
     return isNaN(parsed) ? 0 : parsed;
 };
 
-export const processExcelFile = async (buffer) => {
+// --- MODIFIED: Accept 'input' which can be a buffer OR a file path ---
+export const processExcelFile = async (input) => {
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer);
+    
+    // Check if the input is a file path (string) or a RAM buffer
+    if (typeof input === 'string') {
+        console.log(`Reading Excel file from disk: ${input}`);
+        await workbook.xlsx.readFile(input);
+    } else {
+        console.log(`Reading Excel file from RAM buffer`);
+        await workbook.xlsx.load(input);
+    }
     
     const CHUNK_SIZE = 500; 
 
@@ -43,16 +52,13 @@ export const processExcelFile = async (buffer) => {
             const brand = getSafeValue(row.getCell(27));
 
             if (parsedDate && truckNumber && brand) {
-                // ARCHITECT FIX 1: Deterministic Trip ID. 
-                // We combine Truck + Date + SN. If the row shifts next week, 
-                // this ID remains EXACTLY the same, triggering the UPDATE instead of duplicating!
                 const rawTripId = getSafeValue(row.getCell(3));
                 const deterministicTripId = `TRP-${truckNumber}-${parsedDate}-${sn}`.replace(/[^a-zA-Z0-9_-]/g, '');
                 const finalTripId = rawTripId || deterministicTripId;
 
                 tripsRecords.push([
                     sn, 
-                    finalTripId, // Replaced brittle row-based ID with stable data-based ID
+                    finalTripId,
                     getSafeValue(row.getCell(4)), 
                     getSafeValue(row.getCell(5)) || 'UNKNOWN', 
                     parsedDate,
@@ -130,8 +136,6 @@ export const processExcelFile = async (buffer) => {
             const parsedDate = parseExcelDate(rawDate);
 
             if (parsedDate && amount > 0 && truckNo) {
-                // ARCHITECT FIX 2: Deterministic Maintenance Key
-                // Removed the reliance on row 'i'. Now hashes Truck + Date + Amount.
                 const safeDesc = (itemDesc || '').substring(0, 10).replace(/[^a-zA-Z0-9]/g, '');
                 const rawSignature = `MNT_${truckNo}_${parsedDate}_${amount}_${safeDesc}`;
                 const uniqueKey = rawSignature.replace(/[^a-zA-Z0-9_-]/g, '');
