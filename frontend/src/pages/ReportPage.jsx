@@ -469,7 +469,7 @@ const ReportPage = () => {
             {metrics?.managers?.map((m, i) => {
               const activeTotal = Number(m?.active_trucks || 0); 
               const revenueUnits = Number(m?.revenue_trucks || 0); 
-              const capacity = Number(m?.total_capacity || 1); // <--- DYNAMIC DB CAPACITY!
+              const capacity = Number(m?.total_capacity || 1); 
               const revenueTrips = Number(m?.trips || 0);
               const profit = Number(m?.profit || 0);
               const totalCommVol = Number(metrics?.trips_breakdown?.non_it || 1);

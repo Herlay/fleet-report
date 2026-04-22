@@ -1,7 +1,4 @@
 import axios from 'axios';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
 import { processExcelFile } from '../services/excel.service.js';
 
 export const uploadTripData = async (req, res) => {
@@ -15,15 +12,14 @@ export const uploadTripData = async (req, res) => {
 
         console.log(`Processing file: ${req.file.originalname} (${req.file.size} bytes)`);
 
-        // Call the service to parse and insert data (Passes the RAM buffer)
+        // Call the service to parse and insert data
         const result = await processExcelFile(req.file.buffer);
 
         return res.status(200).json({
             success: true,
             message: "File processed successfully",
             data: {
-                insertedRows: result.count,
-                maintenanceRows: result.maintCount
+                insertedRows: result.count
             }
         });
 
@@ -38,9 +34,6 @@ export const uploadTripData = async (req, res) => {
 };
 
 export const handleGoogleSheet = async (req, res) => {
-    // Generate a temporary file path on the server's hard drive
-    const tempFilePath = path.join(os.tmpdir(), `google-sheet-${Date.now()}.xlsx`);
-
     try {
         const { url } = req.body;
 
@@ -51,12 +44,12 @@ export const handleGoogleSheet = async (req, res) => {
         // Convert URL to a direct XLSX download link
         const downloadUrl = url.replace(/\/edit.*$/, '/export?format=xlsx');
 
-        console.log("Downloading from Google to Disk:", downloadUrl);
+        console.log("Downloading from Google:", downloadUrl);
 
-        // --- FIXED: Stream to disk to prevent RAM crash ---
+        // --- CRITICAL FIX: Add Anti-Bot Headers to prevent ECONNRESET ---
         const response = await axios.get(downloadUrl, { 
-            responseType: 'stream', 
-            timeout: 60000, 
+            responseType: 'arraybuffer',
+            timeout: 15000, // Wait up to 15 seconds before failing
             headers: {
                 // Trick Google into thinking this is a real browser
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -64,39 +57,17 @@ export const handleGoogleSheet = async (req, res) => {
             }
         });
         
-        // Pipe the download stream directly into a file
-        const writer = fs.createWriteStream(tempFilePath);
-        response.data.pipe(writer);
-
-        // Wait for the file to finish downloading and saving to disk
-        await new Promise((resolve, reject) => {
-            writer.on('finish', resolve);
-            writer.on('error', reject);
-        });
-
-        console.log("File saved to temporary storage. Processing tabs...");
-
-        // Pass the file path (string) to the service instead of a memory buffer
-        const result = await processExcelFile(tempFilePath);
-
-        // Clean up: Delete the temporary file from the server
-        fs.unlinkSync(tempFilePath);
+        const result = await processExcelFile(response.data);
 
         return res.status(200).json({
             success: true,
             message: "Google Sheet synced successfully",
             data: {
-                insertedRows: result.count,
-                maintenanceRows: result.maintCount
+                insertedRows: result.count 
             }
         });
 
     } catch (error) {
-        // Clean up the temp file if an error causes a crash halfway through
-        if (fs.existsSync(tempFilePath)) {
-            fs.unlinkSync(tempFilePath);
-        }
-
         console.error("Google Sync Error:", error);
         
         // Custom check for the ECONNRESET network drop
