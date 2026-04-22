@@ -13,9 +13,15 @@ const getSafeValue = (cell) => {
 };
 
 const safeFloat = (val) => {
-    if (typeof val === 'string') val = val.replace(/,/g, ''); 
-    const parsed = parseFloat(val);
-    return isNaN(parsed) ? 0 : parsed;
+    if (val === null || val === undefined) return 0;
+    if (typeof val === 'number') return val;
+    
+    if (typeof val === 'string') {
+         const cleaned = val.replace(/[^0-9.-]/g, ''); 
+        const parsed = parseFloat(cleaned);
+        return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
 };
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -141,7 +147,8 @@ export const processExcelFile = async (input) => {
                     const parsedDate = parseExcelDate(rawDate);
 
                     if (parsedDate && amount > 0 && truckNo) {
-                        const safeDesc = (itemDesc || '').substring(0, 10).replace(/[^a-zA-Z0-9]/g, '');
+                        // --- FIXED: Expanded unique ID fingerprint from 10 to 40 characters ---
+                        const safeDesc = (itemDesc || '').substring(0, 40).replace(/[^a-zA-Z0-9]/g, '');
                         const rawSignature = `MNT_${truckNo}_${parsedDate}_${amount}_${safeDesc}`;
                         const uniqueKey = rawSignature.replace(/[^a-zA-Z0-9_-]/g, '');
 
@@ -235,7 +242,8 @@ export const processExcelFile = async (input) => {
                 const parsedDate = parseExcelDate(rawDate);
 
                 if (parsedDate && amount > 0 && truckNo) {
-                    const safeDesc = (itemDesc || '').substring(0, 10).replace(/[^a-zA-Z0-9]/g, '');
+                    // --- FIXED: Expanded unique ID fingerprint from 10 to 40 characters ---
+                    const safeDesc = (itemDesc || '').substring(0, 40).replace(/[^a-zA-Z0-9]/g, '');
                     const rawSignature = `MNT_${truckNo}_${parsedDate}_${amount}_${safeDesc}`;
                     const uniqueKey = rawSignature.replace(/[^a-zA-Z0-9_-]/g, '');
 
