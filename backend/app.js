@@ -10,7 +10,7 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:5173',               
   'https://fleet-report-system.vercel.app',
-  'https://fleet-report.vercel.app/'  
+  'https://fleet-report.vercel.app'  
 ];
 
 app.use(cors({
